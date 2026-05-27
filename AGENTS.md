@@ -1,0 +1,13 @@
+- `README.md` is stale Base44 boilerplate. Trust `package.json`, `src/lib/supabaseClient.js`, and `src/pages/index.jsx` over the README.
+- Single-package Vite + React SPA. Commands: `npm run dev`, `npm run build`, `npm run lint`, `npm run preview`.
+- No test runner or typecheck script is configured. Verification is usually `npm run lint` and, for app-wide changes, `npm run build`.
+- JavaScript repo with one TypeScript helper: `src/utils/index.ts`.
+- Supabase is the live backend. Runtime env requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env`; `.env` is gitignored and there is no `.env.example`.
+- Real app entrypoints: `src/main.jsx` -> `src/App.jsx` -> `src/pages/index.jsx`.
+- Auth and routing are centralized in `src/pages/index.jsx`: `/login` is the only public route, and all app pages are wrapped by `ProtectedRoute` plus `Layout`.
+- When adding or renaming pages, update both `src/pages/index.jsx` routes and `src/pages/Layout.jsx` navigation. Route URLs are generated via `createPageUrl()` in `src/utils/index.ts`.
+- `@/` resolves to `src/` (`vite.config.js`, `jsconfig.json`). `jsconfig.json` only includes `src/**/*.js` and `src/**/*.jsx`, even though `src/utils/index.ts` exists.
+- UI primitives are shadcn/ui in `src/components/ui/`; repo config is `components.json` (`new-york`, Tailwind CSS variables, alias `ui` -> `@/components/ui`).
+- Tailwind is active (`tailwind.config.js`, `postcss.config.js`); there is no Prettier config.
+- Legacy Base44 leftovers still exist. Do not revive them unless the task explicitly requires it: `src/api/integrations.js` imports a missing `./base44Client`, `src/pages/Original_Budgets.jsx` is a backup page, and some current data-mapping code still carries `_base44` fallback fields.
+- `GEMINI.md` is the repo-local source for UI style expectations and the Supabase schema.

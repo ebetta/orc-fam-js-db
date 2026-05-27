@@ -1,0 +1,6 @@
+
+# npm install (Apena na primeira vez)
+
+# npm run build (Para builda PRD)
+
+npm run dev
