@@ -33,7 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 // import { User as UserEntity } from "@/api/entities"; // Remove Base44 User entity
-import { supabase } from "@/lib/supabaseClient"; // Import Supabase client
+import { auth } from "@/lib/api";
 
 const UserContext = createContext(null);
 
@@ -101,42 +101,22 @@ export default function Layout({ children, currentPageName }) {
   React.useEffect(() => {
     const fetchUserAndListen = async () => {
       // Initial fetch
-      const { data: { user: initialUser } } = await supabase.auth.getUser();
+      const { data: { user: initialUser } } = await auth.getUser();
       setUser(initialUser);
       // setLoading(false); // setLoading can be removed
 
-      // Listen for auth changes
-      const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-        console.log("Layout Auth event:", event, session);
-        const currentUser = session?.user || null;
-        setUser(currentUser);
-
-        // If user logs out (session becomes null) and we are not on login page, redirect.
-        // This is a fallback, ProtectedRoute should primarily handle unauthenticated access.
-        if (!currentUser && location.pathname !== '/login') {
-          navigate('/login', { replace: true });
-        }
-        // If user logs in (session appears) and they are somehow on login page, redirect to dashboard.
-        else if (currentUser && location.pathname === '/login') {
-          navigate('/', { replace: true });
-        }
-      });
-
-      return () => {
-        authListener?.subscription?.unsubscribe();
-      };
     };
 
     fetchUserAndListen();
   }, [navigate, location.pathname]);
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await auth.signOut();
     if (error) {
       console.error("Error logging out:", error);
     }
-    // setUser(null); // onAuthStateChange will handle this
-    // navigate("/login"); // onAuthStateChange will handle this
+    setUser(null); 
+    navigate("/login"); 
   };
 
   // If there's no user object, it might mean auth state is still loading or user is logged out.

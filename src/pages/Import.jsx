@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { api, auth } from "@/lib/api";
 import Papa from "papaparse";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,19 +41,13 @@ export default function ImportPage() {
 
   const loadInitialData = async () => {
     try {
-      const { data: accountsData, error: accountsError } = await supabase
-        .from('accounts')
-        .select('*')
-        .eq('is_active', true);
-
+      const { data: accountsRaw, error: accountsError } = await api.get('accounts');
       if (accountsError) throw accountsError;
+      const accountsData = accountsRaw.filter(a => a.is_active !== false);
 
-      const { data: tagsData, error: tagsError } = await supabase
-        .from('tags')
-        .select('*')
-        .eq('is_active', true);
-
+      const { data: tagsRaw, error: tagsError } = await api.get('tags');
       if (tagsError) throw tagsError;
+      const tagsData = tagsRaw.filter(t => t.is_active !== false);
 
       setAccounts(accountsData);
       setTags(tagsData);
@@ -112,12 +106,14 @@ export default function ImportPage() {
 
   const checkTransactionExists = async (transaction, accountId) => {
     try {
-        const { data: existingTransactions, error } = await supabase
-            .from('transactions')
-            .select('id, description, amount')
-            .eq('account_id', accountId)
-            .eq('transaction_date', transaction.date)
-            .eq('amount', Math.abs(transaction.amount));
+        const { data: allTransactions, error } = await api.get('transactions');
+        if (error) throw error;
+        
+        const existingTransactions = allTransactions.filter(t => 
+            t.account_id === accountId && 
+            t.transaction_date === transaction.date && 
+            Math.abs(parseFloat(t.amount)) === Math.abs(transaction.amount)
+        );
 
         if (error) throw error;
 
@@ -169,10 +165,7 @@ export default function ImportPage() {
 
   const handleTagUpdate = async (transactionId, tagId) => {
     try {
-      const { error } = await supabase
-        .from('transactions')
-        .update({ tag_id: tagId })
-        .eq('id', transactionId);
+      const { error } = await api.put('transactions', transactionId, { tag_id: tagId });
 
       if (error) throw error;
 
@@ -203,7 +196,7 @@ const handleImport = async () => {
     setUploadError("");
 
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await auth.getUser();
         
         // Parse do arquivo CSV diretamente no cliente
         setProgress(25);
@@ -272,7 +265,8 @@ const handleImport = async () => {
                                 reason: 'Transação já existe'
                             });
                         } else {
-                            const { data: newTransaction, error: insertError } = await supabase.from('transactions').insert([transactionData]).select('id, tag_id').single();
+                            const { data: newTransactions, error: insertError } = await api.post('transactions', transactionData);
+                            const newTransaction = newTransactions[0];
                             if (insertError) throw insertError;
 
                             importResults.imported++;

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from "react";
 // import { Tag } from "@/api/entities"; // Remove old entity
-import { supabase } from "@/lib/supabaseClient"; // Import Supabase client
+import { api, auth } from "@/lib/api";
 import { motion } from "framer-motion";
 
 import TagsHeader from "../components/tags/TagsHeader";
@@ -35,10 +35,7 @@ export default function TagsPage() {
   const loadTags = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("tags")
-        .select("*")
-        .order("name", { ascending: true }); // Order by name for consistency
+      const { data, error } = await api.get("tags", { _sort: "name", _order: "asc" });
 
       if (error) throw error;
       setTags(data || []);
@@ -56,7 +53,7 @@ export default function TagsPage() {
   const handleFormSubmit = async (tagData) => {
     const isEditing = !!editingTag?.id;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await auth.getUser();
       if (!user && !isEditing) throw new Error("Usuário não autenticado para criar tag.");
       // For editing, RLS will protect, user object not strictly needed for the update call itself.
 
@@ -68,17 +65,14 @@ export default function TagsPage() {
           parent_tag_id: tagData.parent_tag_id !== undefined ? tagData.parent_tag_id : editingTag.parent_tag_id,
         };
 
-        const { error: updateError } = await supabase
-          .from("tags")
-          .update(dataToUpdate) // Use dataToUpdate
-          .eq("id", editingTag.id);
+        const { error: updateError } = await api.put("tags", editingTag.id, dataToUpdate);
         if (updateError) throw updateError;
 
         if (dataToUpdate.color && dataToUpdate.color !== editingTag.color) { // Use dataToUpdate
           const childrenTags = tags.filter(tag => tag.parent_tag_id === editingTag.id); // Updated field name
           if (childrenTags.length > 0) {
             const updatePromises = childrenTags.map(child =>
-              supabase.from("tags").update({ color: dataToUpdate.color }).eq("id", child.id) // Use dataToUpdate
+              api.put("tags", child.id, { color: dataToUpdate.color })
             );
             const results = await Promise.all(updatePromises);
             results.forEach(result => { if (result.error) console.error("Erro ao atualizar cor do filho:", result.error); });
@@ -118,7 +112,7 @@ export default function TagsPage() {
           }
         }
         
-        const { error: insertError } = await supabase.from("tags").insert([finalTagData]);
+        const { error: insertError } = await api.post("tags", finalTagData);
         if (insertError) throw insertError;
         toast({
           title: "Tag Criada!",
@@ -158,7 +152,7 @@ export default function TagsPage() {
 
     try {
       const tagToDelete = tags.find(t => t.id === tagId); // For toast message
-      const { error } = await supabase.from("tags").delete().eq("id", tagId);
+      const { error } = await api.delete("tags", tagId);
       if (error) throw error;
 
       toast({

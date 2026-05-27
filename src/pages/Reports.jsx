@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 // import { Tag } from "@/api/entities"; // Removed
 // import { Transaction } from "@/api/entities"; // Removed
 // import { Budget } from "@/api/entities"; // Removed
-import { supabase } from "@/lib/supabaseClient"; // Added
+import { api } from "@/lib/api"; 
 import { motion } from "framer-motion";
 import { FileDown, Printer, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -89,9 +89,9 @@ export default function ReportsPage() {
     setIsLoading(true);
     try {
       const [tagsResponse, transactionsResponse, budgetsResponse] = await Promise.all([
-        supabase.from('tags').select('*'),
-        supabase.from('transactions').select('*').order('transaction_date', { ascending: false }).limit(5000),
-        supabase.from('budgets').select('*'),
+        api.get('tags'),
+        api.get('transactions', { _sort: 'transaction_date', _order: 'desc', _limit: 5000 }),
+        api.get('budgets'),
       ]);
 
       if (tagsResponse.error) throw tagsResponse.error;

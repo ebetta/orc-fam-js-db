@@ -9,8 +9,8 @@ import Import from "./Import";
 import LoginPage from "./Login.jsx"; // Import the new Login page
 
 import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from 'react-router-dom';
-import React from "react"; // Import React for useEffect and useState
-import { supabase } from "@/lib/supabaseClient"; // Import Supabase client
+import React from "react"; 
+import { auth } from "@/lib/api";
 
 const PAGES = {
     Dashboard: Dashboard,
@@ -44,21 +44,12 @@ const ProtectedRoute = ({ children }) => {
 
     React.useEffect(() => {
         const getSession = async () => {
-            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            const { data: { session: currentSession } } = await auth.getSession();
             setSession(currentSession);
             setLoading(false);
         };
 
         getSession();
-
-        const { data: authListener } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-            setSession(currentSession);
-            // No need to setLoading(false) here again unless it's the initial check
-        });
-
-        return () => {
-            authListener?.subscription?.unsubscribe();
-        };
     }, []);
 
     if (loading) {

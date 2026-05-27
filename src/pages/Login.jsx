@@ -1,20 +1,16 @@
 import React from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { auth } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { ChromeIcon } from 'lucide-react'; // Using Chrome icon as a stand-in for Google icon
+import { LogIn } from 'lucide-react'; 
 
 const LoginPage = () => {
-  const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
+  const handleLogin = async () => {
+    const { error } = await auth.login();
 
     if (error) {
-      console.error('Error logging in with Google:', error);
-      // You might want to show a toast notification here
+      console.error('Error logging in:', error);
+    } else {
+      window.location.href = '/';
     }
   };
 
@@ -58,11 +54,11 @@ const LoginPage = () => {
         <h1 style={titleStyle}>Bem-vindo!</h1>
         <p style={subtitleStyle}>Faça login para continuar.</p>
         <Button
-          onClick={handleGoogleLogin}
+          onClick={handleLogin}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg"
         >
-          <ChromeIcon className="mr-2 h-5 w-5" /> {/* Using Chrome icon */}
-          Login com Google
+          <LogIn className="mr-2 h-5 w-5" /> 
+          Entrar (Modo Local)
         </Button>
       </div>
     </div>

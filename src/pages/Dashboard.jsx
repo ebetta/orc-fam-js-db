@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 // import { Transaction } from "@/api/entities"; // Removed
 // import { Tag } from "@/api/entities"; // Removed
 // import { User } from "@/api/entities"; // Removed
-import { supabase } from "@/lib/supabaseClient"; // Added
+import { api } from "@/lib/api"; 
 import { motion } from "framer-motion";
 import { useCurrencyConversion } from "../components/utils/CurrencyConverter";
 
@@ -39,10 +39,7 @@ export default function Dashboard() {
     setIsLoading(true);
     try {
       // Fetch data using Supabase
-      const { data: accountsData, error: accountsError } = await supabase
-        .from('accounts')
-        .select('*')
-        .order('updated_at', { ascending: false });
+      const { data: accountsData, error: accountsError } = await api.get('accounts', { _sort: 'updated_at', _order: 'desc' });
       if (accountsError) console.error("Erro ao carregar contas:", accountsError);
 
       const fetchedAccounts = accountsData || [];
@@ -56,16 +53,11 @@ export default function Dashboard() {
 
 
 
-      const { data: allTransactionsData, error: allTransactionsError } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('transaction_date', { ascending: false });
+      const { data: allTransactionsData, error: allTransactionsError } = await api.get('transactions', { _sort: 'transaction_date', _order: 'desc' });
       if (allTransactionsError) console.error("Erro ao carregar todas as transações:", allTransactionsError);
       setAllTransactions(allTransactionsData || []);
       
-      const { data: tagsData, error: tagsError } = await supabase
-        .from('tags')
-        .select('*');
+      const { data: tagsData, error: tagsError } = await api.get('tags');
       if (tagsError) console.error("Erro ao carregar tags:", tagsError);
       setTags(tagsData || []);
 

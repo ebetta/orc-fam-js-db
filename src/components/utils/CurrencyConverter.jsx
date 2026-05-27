@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // import { InvokeLLM } from "@/api/integrations"; // Removed
 // import { ExchangeRate } from "@/api/entities"; // Removed
-import { supabase } from "@/lib/supabaseClient"; // Added
+import { api } from "@/lib/api";
 
 // Cache em memória para cotações já buscadas na sessão atual
 const memoryCache = new Map(); // General cache
@@ -23,15 +23,11 @@ export const getHistoricalExchangeRate = async (fromCurrency, targetDate, toCurr
   }
 
   try {
-    const { data, error } = await supabase
-      .from('exchange_rates')
-      .select('rate, rate_date')
-      .eq('from_currency', fromCurrency)
-      .eq('to_currency', toCurrency)
-      .lte('rate_date', formattedTargetDate) // Rate date is less than or equal to the target date
-      .order('rate_date', { ascending: false }) // Get the closest date
-      .limit(1)
-      .maybeSingle();
+    const { data: allRates, error } = await api.get('exchange_rates');
+    
+    const filteredRates = allRates?.filter(r => r.from_currency === fromCurrency && r.to_currency === toCurrency && r.rate_date <= formattedTargetDate)
+                                  .sort((a, b) => new Date(b.rate_date).getTime() - new Date(a.rate_date).getTime());
+    const data = filteredRates?.[0];
 
     if (error) {
       console.error(`Erro ao buscar cotação histórica ${fromCurrency}->${toCurrency} para data ${formattedTargetDate}:`, error.message);
@@ -76,15 +72,8 @@ export const getCurrencyExchangeRate = async (fromCurrency, toCurrency = 'BRL') 
   try {
     // 2. Buscar na base de dados (Supabase) - Rate for TODAY
     console.log(`[getCurrencyExchangeRate] Buscando taxa de HOJE (${today}) no DB para ${fromCurrency}->${toCurrency}`);
-    const { data: rateData, error: rateError } = await supabase
-      .from('exchange_rates')
-      .select('rate')
-      .eq('from_currency', fromCurrency)
-      .eq('to_currency', toCurrency)
-      .eq('rate_date', today)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: allRatesForToday, error: rateError } = await api.get('exchange_rates');
+    const rateData = allRatesForToday?.find(r => r.from_currency === fromCurrency && r.to_currency === toCurrency && r.rate_date === today);
 
     if (rateError) {
       console.error(`[getCurrencyExchangeRate] Erro ao buscar cotação ${fromCurrency}->${toCurrency} do DB (hoje):`, rateError.message);
@@ -101,15 +90,10 @@ export const getCurrencyExchangeRate = async (fromCurrency, toCurrency = 'BRL') 
 
     // 3. Fallback: tentar buscar cotação mais recente na base (qualquer data ANTERIOR a hoje)
     console.log(`[getCurrencyExchangeRate] Buscando taxa FALLBACK (< ${today}) no DB para ${fromCurrency}->${toCurrency}`);
-    const { data: fallbackRateData, error: fallbackError } = await supabase
-      .from('exchange_rates')
-      .select('rate, rate_date')
-      .eq('from_currency', fromCurrency)
-      .eq('to_currency', toCurrency)
-      .lt('rate_date', today)
-      .order('rate_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const fallbackFiltered = allRatesForToday?.filter(r => r.from_currency === fromCurrency && r.to_currency === toCurrency && r.rate_date < today)
+                                              .sort((a, b) => new Date(b.rate_date).getTime() - new Date(a.rate_date).getTime());
+    const fallbackRateData = fallbackFiltered?.[0];
+    const fallbackError = null;
 
     if (fallbackError) {
       console.error(`[getCurrencyExchangeRate] Erro ao buscar cotação fallback ${fromCurrency}->${toCurrency}:`, fallbackError.message);
@@ -226,19 +210,16 @@ export const cleanOldExchangeRates = async (daysToKeep = 30) => {
     const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
     
     // Fetch IDs of rates older than cutoffDateStr
-    const { data: ratesToDelete, error: fetchError } = await supabase
-      .from('exchange_rates')
-      .select('id')
-      .lt('rate_date', cutoffDateStr);
+    const { data: allRates, error: fetchError } = await api.get('exchange_rates');
+    const ratesToDelete = allRates?.filter(r => r.rate_date < cutoffDateStr);
 
     if (fetchError) throw fetchError;
 
     if (ratesToDelete && ratesToDelete.length > 0) {
       const idsToDelete = ratesToDelete.map(rate => rate.id);
-      const { error: deleteError } = await supabase
-        .from('exchange_rates')
-        .delete()
-        .in('id', idsToDelete);
+      const deletePromises = idsToDelete.map(id => api.delete('exchange_rates', id));
+      await Promise.all(deletePromises);
+      const deleteError = null;
 
       if (deleteError) throw deleteError;
       console.log(`${idsToDelete.length} cotações antigas removidas.`);

@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom"; // <<< ADICIONAR IMPORT
 // import { Transaction } from "@/api/entities"; // Removed
 // import { Account } from "@/api/entities"; // Removed
 // import { Tag } from "@/api/entities"; // Removed
-import { supabase } from "@/lib/supabaseClient"; // Added
+import { api, auth } from "@/lib/api"; 
 import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { startOfDay, endOfDay, parseISO } from "date-fns";
@@ -311,7 +311,7 @@ export default function TransactionsPage() {
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await auth.getUser();
       if (!user) {
         toast({ title: "Usuário não autenticado.", variant: "destructive" });
         setIsLoading(false);
@@ -319,9 +319,9 @@ export default function TransactionsPage() {
       }
 
       const [transactionsResponse, accountsResponse, tagsResponse] = await Promise.all([
-        supabase.from('transactions').select('*').order('transaction_date', { ascending: false }).order('created_at', { ascending: false }).order('updated_at', { ascending: false }).limit(5000),
-        supabase.from('accounts').select('*'),
-        supabase.from('tags').select('*')
+        api.get('transactions', { _sort: 'transaction_date,created_at,updated_at', _order: 'desc', _limit: 5000 }),
+        api.get('accounts'),
+        api.get('tags')
       ]);
 
       if (transactionsResponse.error) throw transactionsResponse.error;
@@ -362,19 +362,14 @@ export default function TransactionsPage() {
   const handleFormSubmit = async (transactionData) => {
     const isEditing = !!editingTransaction?.id;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await auth.getUser();
       if (!user) throw new Error("Usuário não autenticado.");
 
       if (isEditing) {
-        const { error } = await supabase
-          .from("transactions")
-          .update(transactionData)
-          .eq("id", editingTransaction.id);
+        const { error } = await api.put("transactions", editingTransaction.id, transactionData);
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from("transactions")
-          .insert([{ ...transactionData, user_id: user.id }]);
+        const { error } = await api.post("transactions", transactionData);
         if (error) throw error;
       }
       toast({
@@ -407,10 +402,7 @@ export default function TransactionsPage() {
         toast({ title: "Transação não encontrada para exclusão.", variant: "destructive" });
         return;
       }
-      const { error } = await supabase
-        .from("transactions")
-        .delete()
-        .eq("id", transactionId);
+      const { error } = await api.delete("transactions", transactionId);
       if (error) throw error;
       toast({
         title: "Transação Excluída!",

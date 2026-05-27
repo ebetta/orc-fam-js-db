@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 // import { Account } from "@/api/entities"; // Remove old entity
-import { supabase } from "@/lib/supabaseClient"; // Import Supabase client
+import { api, auth } from "@/lib/api"; 
 import { Button } from "@/components/ui/button";
 // import { Plus } from "lucide-react"; // Plus is not directly used here
 import { motion } from "framer-motion";
@@ -23,10 +23,7 @@ export default function Accounts() {
   const loadAccounts = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("accounts")
-        .select("*")
-        .order("updated_at", { ascending: false });
+      const { data, error } = await api.get("accounts", { _sort: "updated_at", _order: "desc" });
 
       if (error) throw error;
       setAccounts(data || []);
@@ -39,12 +36,10 @@ export default function Accounts() {
 
   const handleCreateAccount = async (accountData) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await auth.getUser();
       if (!user) throw new Error("Usuário não autenticado.");
 
-      const { error } = await supabase.from("accounts").insert([
-        { ...accountData, user_id: user.id }, // initial_balance should be part of accountData from form
-      ]);
+      const { error } = await api.post("accounts", accountData); // api handles user_id
 
       if (error) throw error;
       setShowForm(false);
@@ -62,10 +57,7 @@ export default function Accounts() {
     // }
 
     try {
-      const { error } = await supabase
-        .from("accounts")
-        .delete()
-        .eq("id", accountId);
+      const { error } = await api.delete("accounts", accountId);
 
       if (error) throw error;
       loadAccounts(); // Reload accounts to reflect the deletion
@@ -77,10 +69,7 @@ export default function Accounts() {
 
   const handleUpdateAccount = async (accountData) => {
     try {
-      const { error } = await supabase
-        .from("accounts")
-        .update(accountData)
-        .eq("id", editingAccount.id);
+      const { error } = await api.put("accounts", editingAccount.id, accountData);
 
       if (error) throw error;
       setShowForm(false);

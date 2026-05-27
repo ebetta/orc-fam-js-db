@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 // import { Budget } from "@/api/entities"; // Removed
 // import { Tag } from "@/api/entities"; // Removed
 // import { Transaction } from "@/api/entities"; // Removed
-import { supabase } from "@/lib/supabaseClient"; // Added
+import { api, auth } from "@/lib/api";
 import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -95,7 +95,7 @@ export default function BudgetsPage() {
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await auth.getUser();
       if (!user) {
         toast({ title: "Usuário não autenticado.", variant: "destructive" });
         setIsLoading(false);
@@ -103,9 +103,9 @@ export default function BudgetsPage() {
       }
 
       const [budgetsResponse, tagsResponse, transactionsResponse] = await Promise.all([
-        supabase.from('budgets').select('*').order('updated_at', { ascending: false }),
-        supabase.from('tags').select('*'),
-        supabase.from('transactions').select('*').order('transaction_date', { ascending: false }).limit(5000)
+        api.get('budgets', { _sort: 'updated_at', _order: 'desc' }),
+        api.get('tags'),
+        api.get('transactions', { _sort: 'transaction_date', _order: 'desc', _limit: 5000 })
       ]);
 
       if (budgetsResponse.error) throw budgetsResponse.error;
@@ -318,14 +318,11 @@ export default function BudgetsPage() {
   const handleFormSubmit = async (budgetData) => {
     try {
       const dataToSave = { ...budgetData }; // Ensure budgetData from form matches table columns
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await auth.getUser();
       if (!user) throw new Error("Usuário não autenticado.");
 
       if (editingBudget && !editingBudget.isVirtual) {
-        const { error } = await supabase
-          .from('budgets')
-          .update(dataToSave)
-          .eq('id', editingBudget.id);
+        const { error } = await api.put('budgets', editingBudget.id, dataToSave);
         if (error) throw error;
         toast({
           title: "Orçamento Atualizado!",
@@ -338,9 +335,7 @@ export default function BudgetsPage() {
         // console.log("Payload para criar orçamento:", JSON.stringify(budgetPayload, null, 2)); // Log removido
 
         try {
-          const { error } = await supabase
-            .from('budgets')
-            .insert([budgetPayload]);
+          const { error } = await api.post('budgets', budgetPayload);
 
           if (error) {
             // console.error("Erro detalhado do Supabase ao criar orçamento:", JSON.stringify(error, null, 2)); // Log removido
@@ -380,10 +375,7 @@ export default function BudgetsPage() {
         return;
       }
       const budgetToDelete = budgets.find(b => b.id === budgetId);
-      const { error } = await supabase
-        .from('budgets')
-        .delete()
-        .eq('id', budgetId);
+      const { error } = await api.delete('budgets', budgetId);
       if (error) throw error;
       toast({
         title: "Orçamento Excluído!",
