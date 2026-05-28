@@ -107,8 +107,77 @@ const handleDelete = async (req, res, tableName) => {
   }
 };
 
-// --- Routes ---
-const tables = ['accounts', 'budgets', 'tags', 'transactions', 'exchange_rates'];
+// --- Exchange Rates Routes (global table, no user_id) ---
+app.get('/api/exchange_rates', async (req, res) => {
+  try {
+    let query = 'SELECT * FROM exchange_rates';
+    const sortBy = req.query._sort;
+    const order = req.query._order === 'asc' ? 'ASC' : 'DESC';
+    if (sortBy) {
+      const sortFields = sortBy.split(',').map(field => `${field} ${order}`).join(', ');
+      query += ` ORDER BY ${sortFields}`;
+    }
+    const limit = req.query._limit;
+    if (limit && !isNaN(limit)) {
+      query += ` LIMIT ${parseInt(limit)}`;
+    }
+    const { rows } = await pool.query(query);
+    res.json({ data: rows, error: null });
+  } catch (error) {
+    console.error('Error GET exchange_rates:', error);
+    res.status(500).json({ error: { message: error.message }, data: null });
+  }
+});
+
+app.post('/api/exchange_rates', async (req, res) => {
+  try {
+    const data = { id: randomUUID(), ...req.body };
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const query = `INSERT INTO exchange_rates (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`;
+    const { rows } = await pool.query(query, values);
+    res.json({ data: rows, error: null });
+  } catch (error) {
+    console.error('Error POST exchange_rates:', error);
+    res.status(500).json({ error: { message: error.message }, data: null });
+  }
+});
+
+app.put('/api/exchange_rates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = { ...req.body };
+    delete data.id;
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    if (keys.length === 0) {
+      return res.status(400).json({ error: { message: 'No fields to update' }, data: null });
+    }
+    const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+    const query = `UPDATE exchange_rates SET ${setClause} WHERE id = $${keys.length + 1} RETURNING *`;
+    const { rows } = await pool.query(query, [...values, id]);
+    res.json({ data: rows, error: null });
+  } catch (error) {
+    console.error('Error PUT exchange_rates:', error);
+    res.status(500).json({ error: { message: error.message }, data: null });
+  }
+});
+
+app.delete('/api/exchange_rates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const query = 'DELETE FROM exchange_rates WHERE id = $1 RETURNING *';
+    const { rows } = await pool.query(query, [id]);
+    res.json({ data: rows, error: null });
+  } catch (error) {
+    console.error('Error DELETE exchange_rates:', error);
+    res.status(500).json({ error: { message: error.message }, data: null });
+  }
+});
+
+// --- Routes (user-scoped tables) ---
+const tables = ['accounts', 'budgets', 'tags', 'transactions'];
 
 tables.forEach(tableName => {
   app.get(`/api/${tableName}`, (req, res) => handleGet(req, res, tableName));

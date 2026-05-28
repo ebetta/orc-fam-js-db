@@ -216,9 +216,9 @@ account_id,
 destination_account_id on transactions for EACH row
 execute FUNCTION update_account_balances_from_transaction ();
 
+-- Tabela global (sem user_id) - cotações compartilhadas por todos os usuários
 create table public.exchange_rates (
   id uuid not null default extensions.uuid_generate_v4 (),
-  user_id uuid null,
   from_currency text not null,
   to_currency text not null,
   rate numeric not null,
@@ -227,11 +227,8 @@ create table public.exchange_rates (
   created_at timestamp with time zone not null default timezone ('utc'::text, now()),
   updated_at timestamp with time zone not null default timezone ('utc'::text, now()),
   constraint exchange_rates_pkey primary key (id),
-  constraint exchange_rates_from_currency_to_currency_rate_date_user_id_key unique (from_currency, to_currency, rate_date, user_id),
-  constraint exchange_rates_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE
+  constraint exchange_rates_from_currency_to_currency_rate_date_key unique (from_currency, to_currency, rate_date)
 ) TABLESPACE pg_default;
-
-create index IF not exists idx_exchange_rates_user_id on public.exchange_rates using btree (user_id) TABLESPACE pg_default;
 
 create index IF not exists idx_exchange_rates_currency_pair_date on public.exchange_rates using btree (from_currency, to_currency, rate_date) TABLESPACE pg_default;
 

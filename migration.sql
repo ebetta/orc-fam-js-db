@@ -15,7 +15,6 @@ ALTER TABLE public.accounts DROP CONSTRAINT IF EXISTS accounts_user_id_fkey;
 ALTER TABLE public.budgets DROP CONSTRAINT IF EXISTS budgets_user_id_fkey;
 ALTER TABLE public.tags DROP CONSTRAINT IF EXISTS tags_user_id_fkey;
 ALTER TABLE public.transactions DROP CONSTRAINT IF EXISTS transactions_user_id_fkey;
-ALTER TABLE public.exchange_rates DROP CONSTRAINT IF EXISTS exchange_rates_user_id_fkey;
 
 -- 2. Atualizar todos os registros para o novo UUID de mock
 DO $$ 
@@ -26,5 +25,4 @@ BEGIN
   UPDATE public.budgets SET user_id = mock_uuid;
   UPDATE public.tags SET user_id = mock_uuid;
   UPDATE public.transactions SET user_id = mock_uuid;
-  UPDATE public.exchange_rates SET user_id = mock_uuid;
 END $$;
