@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatCurrencyWithSymbol } from "../utils/CurrencyConverter";
+import { convertCurrency, formatCurrencyWithSymbol } from "../utils/CurrencyConverter";
 
 const accountTypeConfig = {
   checking: {
@@ -62,6 +62,25 @@ const accountTypeConfig = {
 };
 
 export default function AccountsGrid({ accounts, isLoading, onEditAccount, onDeleteAccount }) { // Added onDeleteAccount prop
+  const [brlBalances, setBrlBalances] = useState({});
+
+  useEffect(() => {
+    const convertBalances = async () => {
+      const result = {};
+      for (const account of accounts) {
+        const currency = account.currency || 'BRL';
+        if (currency === 'BRL') {
+          result[account.id] = parseFloat(account.current_balance || 0);
+        } else {
+          const balance = parseFloat(account.current_balance || 0);
+          result[account.id] = await convertCurrency(balance, currency, 'BRL');
+        }
+      }
+      setBrlBalances(result);
+    };
+    if (accounts.length > 0) convertBalances();
+  }, [accounts]);
+
   const formatCurrency = (amount, currency = 'BRL') => {
     return formatCurrencyWithSymbol(amount, currency);
   };
@@ -174,9 +193,13 @@ export default function AccountsGrid({ accounts, isLoading, onEditAccount, onDel
                 <div className="space-y-4">
                   <div>
                     <p className={`text-3xl font-bold ${balance < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                      {formatCurrency(balance, currency)}
+                      {formatCurrency(brlBalances[account.id] ?? balance, 'BRL')}
                     </p>
-                    {/* Changed "Saldo Inicial" to "Saldo Atual" */}
+                    {currency !== 'BRL' && (
+                      <p className="text-xs text-gray-500">
+                        ({formatCurrency(balance, currency)})
+                      </p>
+                    )}
                     <p className="text-gray-600 text-sm">Saldo Atual</p>
                   </div>
 

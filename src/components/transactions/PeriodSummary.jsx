@@ -1,41 +1,65 @@
-import React from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, ArrowLeftRight, Calendar } from "lucide-react";
 import { motion } from "framer-motion";
+import { convertCurrency, formatCurrencyWithSymbol } from "@/components/utils/CurrencyConverter";
 
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(amount || 0);
-};
+export default function PeriodSummary({ transactions, filters, accounts }) {
+  const [convertedTotals, setConvertedTotals] = useState(null);
 
-export default function PeriodSummary({ transactions, filters }) {
+  const accountCurrencyMap = useMemo(
+    () => new Map((accounts || []).map(acc => [acc.id, acc.currency || 'BRL'])),
+    [accounts]
+  );
+
+  useEffect(() => {
+    if (!filters.period.from || !filters.period.to) {
+      setConvertedTotals(null);
+      return;
+    }
+
+    const convertTotals = async () => {
+      let income = 0;
+      let expense = 0;
+      let transfer = 0;
+
+      for (const transaction of transactions) {
+        const amount = parseFloat(transaction.amount || 0);
+        if (amount === 0) continue;
+
+        const currency = accountCurrencyMap.get(transaction.account_id) || 'BRL';
+        let amountInBRL = amount;
+
+        if (currency !== 'BRL') {
+          amountInBRL = await convertCurrency(amount, currency, 'BRL', transaction.transaction_date);
+        }
+
+        switch (transaction.transaction_type) {
+          case 'income':
+            income += amountInBRL;
+            break;
+          case 'expense':
+            expense += amountInBRL;
+            break;
+          case 'transfer':
+            transfer += amountInBRL;
+            break;
+        }
+      }
+
+      setConvertedTotals({ income, expense, transfer, balance: income - expense });
+    };
+
+    convertTotals();
+  }, [transactions, filters.period.from, filters.period.to, accountCurrencyMap]);
+
   // Só mostrar se houver um período definido
   if (!filters.period.from || !filters.period.to) {
     return null;
   }
 
-  // Calcular totais por tipo de transação
-  const totals = transactions.reduce((acc, transaction) => {
-    const amount = parseFloat(transaction.amount || 0);
-    
-    switch (transaction.transaction_type) {
-      case 'income':
-        acc.income += amount;
-        break;
-      case 'expense':
-        acc.expense += amount;
-        break;
-      case 'transfer':
-        acc.transfer += amount;
-        break;
-    }
-    
-    return acc;
-  }, { income: 0, expense: 0, transfer: 0 });
-
-  const balance = totals.income - totals.expense;
+  const totals = convertedTotals || { income: 0, expense: 0, transfer: 0, balance: 0 };
+  const { income, expense, transfer, balance } = totals;
   const totalTransactions = transactions.length;
 
   // Formatar período para exibição
@@ -71,7 +95,7 @@ export default function PeriodSummary({ transactions, filters }) {
                 <span className="text-sm font-medium text-gray-600">Receitas</span>
               </div>
               <p className="text-xl font-bold text-green-600">
-                {formatCurrency(totals.income)}
+                {formatCurrencyWithSymbol(totals.income, 'BRL')}
               </p>
             </div>
 
@@ -81,7 +105,7 @@ export default function PeriodSummary({ transactions, filters }) {
                 <span className="text-sm font-medium text-gray-600">Despesas</span>
               </div>
               <p className="text-xl font-bold text-red-600">
-                {formatCurrency(totals.expense)}
+                {formatCurrencyWithSymbol(totals.expense, 'BRL')}
               </p>
             </div>
 
@@ -91,7 +115,7 @@ export default function PeriodSummary({ transactions, filters }) {
                 <span className="text-sm font-medium text-gray-600">Transferências</span>
               </div>
               <p className="text-xl font-bold text-blue-600">
-                {formatCurrency(totals.transfer)}
+                {formatCurrencyWithSymbol(totals.transfer, 'BRL')}
               </p>
             </div>
 
@@ -101,7 +125,7 @@ export default function PeriodSummary({ transactions, filters }) {
                 <span className="text-sm font-medium text-gray-600">Saldo</span>
               </div>
               <p className={`text-xl font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrency(balance)}
+                {formatCurrencyWithSymbol(balance, 'BRL')}
               </p>
             </div>
           </div>

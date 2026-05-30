@@ -92,8 +92,8 @@ const AccountGroup = ({ config, accounts, totalBalanceInBRL, hasMultipleCurrenci
       
       <div className="space-y-2">
         {accounts.map((account) => {
-          const balance = account.current_balance || account.initial_balance || 0;
-          const currency = account.currency || 'BRL';
+          const brlBalance = account.brlBalance;
+          const originalCurrency = account.currency || 'BRL';
           return (
             <div 
               key={account.id} 
@@ -110,8 +110,13 @@ const AccountGroup = ({ config, accounts, totalBalanceInBRL, hasMultipleCurrenci
                   </Badge>
                 )}
               </div>
-              <span className={`font-medium text-gray-900 ${balance < 0 ? 'text-red-600' : ''}`}>
-                {formatCurrencyWithSymbol(balance, currency)}
+              <span className={`font-medium text-gray-900 ${brlBalance < 0 ? 'text-red-600' : ''}`}>
+                {formatCurrencyWithSymbol(brlBalance, 'BRL')}
+                {originalCurrency !== 'BRL' && (
+                  <span className="text-xs text-gray-500 ml-1">
+                    ({formatCurrencyWithSymbol(account.current_balance || account.initial_balance || 0, originalCurrency)})
+                  </span>
+                )}
               </span>
             </div>
           )

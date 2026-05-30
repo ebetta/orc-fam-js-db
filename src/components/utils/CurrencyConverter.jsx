@@ -52,68 +52,41 @@ export const getHistoricalExchangeRate = async (fromCurrency, targetDate, toCurr
 
 
 export const getCurrencyExchangeRate = async (fromCurrency, toCurrency = 'BRL') => {
-  console.log(`[getCurrencyExchangeRate] Solicitado: ${fromCurrency} -> ${toCurrency}`);
-  if (fromCurrency === toCurrency) {
-    console.log('[getCurrencyExchangeRate] Moedas iguais, retornando 1.');
-    return 1;
-  }
-  
-  const today = new Date().toISOString().split('T')[0];
-  const cacheKey = `${fromCurrency}_${toCurrency}_${today}`;
-  console.log(`[getCurrencyExchangeRate] Data de hoje (UTC): ${today}, Chave de cache: ${cacheKey}`);
-  
+  if (fromCurrency === toCurrency) return 1;
+
+  const cacheKey = `${fromCurrency}_${toCurrency}_latest`;
+
   if (memoryCache.has(cacheKey)) {
-    const cachedRate = memoryCache.get(cacheKey);
-    console.log(`[getCurrencyExchangeRate] Taxa encontrada no cache para ${cacheKey}: ${cachedRate}`);
-    return cachedRate;
+    return memoryCache.get(cacheKey);
   }
-  console.log(`[getCurrencyExchangeRate] Taxa não encontrada no cache para ${cacheKey}. Buscando no DB...`);
 
   try {
-    // 2. Buscar na base de dados (Supabase) - Rate for TODAY
-    console.log(`[getCurrencyExchangeRate] Buscando taxa de HOJE (${today}) no DB para ${fromCurrency}->${toCurrency}`);
-    const { data: allRatesForToday, error: rateError } = await api.get('exchange_rates');
-    const rateData = allRatesForToday?.find(r => r.from_currency === fromCurrency && r.to_currency === toCurrency && r.rate_date === today);
+    const { data: allRates, error } = await api.get('exchange_rates');
 
-    if (rateError) {
-      console.error(`[getCurrencyExchangeRate] Erro ao buscar cotação ${fromCurrency}->${toCurrency} do DB (hoje):`, rateError.message);
-    } else {
-      console.log(`[getCurrencyExchangeRate] Resultado da busca por taxa de HOJE:`, rateData);
+    if (error) {
+      console.error(`Erro ao buscar cotação ${fromCurrency}->${toCurrency}:`, error.message);
+      return 1;
     }
 
-    if (rateData && typeof rateData.rate === 'number') {
-      console.log(`[getCurrencyExchangeRate] Taxa de HOJE encontrada: ${rateData.rate}. Cacheando e retornando.`);
-      memoryCache.set(cacheKey, rateData.rate);
-      return rateData.rate;
-    }
-    console.log(`[getCurrencyExchangeRate] Taxa de HOJE não encontrada ou inválida. Tentando fallback...`);
+    const latestRate = allRates
+      ?.filter(r => r.from_currency === fromCurrency && r.to_currency === toCurrency)
+      .sort((a, b) => new Date(b.rate_date).getTime() - new Date(a.rate_date).getTime())?.[0];
 
-    // 3. Fallback: tentar buscar cotação mais recente na base (qualquer data ANTERIOR a hoje)
-    console.log(`[getCurrencyExchangeRate] Buscando taxa FALLBACK (< ${today}) no DB para ${fromCurrency}->${toCurrency}`);
-    const fallbackFiltered = allRatesForToday?.filter(r => r.from_currency === fromCurrency && r.to_currency === toCurrency && r.rate_date < today)
-                                              .sort((a, b) => new Date(b.rate_date).getTime() - new Date(a.rate_date).getTime());
-    const fallbackRateData = fallbackFiltered?.[0];
-    const fallbackError = null;
+    if (latestRate) {
+      const rate = parseFloat(latestRate.rate);
+      if (!isNaN(rate)) {
+        memoryCache.set(cacheKey, rate);
+        return rate;
+      }
+    }
 
-    if (fallbackError) {
-      console.error(`[getCurrencyExchangeRate] Erro ao buscar cotação fallback ${fromCurrency}->${toCurrency}:`, fallbackError.message);
-    } else {
-      console.log(`[getCurrencyExchangeRate] Resultado da busca por taxa FALLBACK:`, fallbackRateData);
-    }
-    
-    if (fallbackRateData && typeof fallbackRateData.rate === 'number') {
-      console.log(`[getCurrencyExchangeRate] Taxa FALLBACK encontrada (${fallbackRateData.rate_date}): ${fallbackRateData.rate}. Cacheando (para ${cacheKey}) e retornando.`);
-      memoryCache.set(cacheKey, fallbackRateData.rate); 
-      return fallbackRateData.rate;
-    }
-    
-    console.warn(`[getCurrencyExchangeRate] Nenhuma cotação encontrada para ${fromCurrency}->${toCurrency} (nem hoje, nem anterior). Usando taxa 1. Cacheando 1 para ${cacheKey}.`);
+    console.warn(`Nenhuma cotação encontrada para ${fromCurrency}->${toCurrency}.`);
     memoryCache.set(cacheKey, 1);
     return 1;
 
   } catch (error) {
-    console.error(`[getCurrencyExchangeRate] Erro GERAL ao buscar cotação ${fromCurrency}->${toCurrency}:`, error.message);
-    return 1; 
+    console.error(`Erro ao buscar cotação ${fromCurrency}->${toCurrency}:`, error.message);
+    return 1;
   }
 };
 

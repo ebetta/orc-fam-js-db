@@ -622,6 +622,7 @@ export default function TransactionsPage() {
       <PeriodSummary
         transactions={filteredTransactions}
         filters={filters}
+        accounts={accounts}
       />
 
       {showForm && (
