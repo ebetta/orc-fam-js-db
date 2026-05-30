@@ -65,7 +65,7 @@ export default function PatrimonyEvolutionChart({ accounts, transactions, isLoad
         // Mapear todas as transações com datas normalizadas para facilitar comparação
         const normalizedTransactions = transactions.map(t => ({
           ...t,
-          normalizedDate: new Date(t.transaction_date.replace(/-/g, '/'))
+          normalizedDate: parseISO(t.transaction_date)
         }));
 
         // Para cada mês no período (do passado para o presente)

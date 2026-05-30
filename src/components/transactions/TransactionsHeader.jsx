@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Plus, TrendingUp, Filter, CalendarIcon, Search, Check, ChevronsUpDown, X } from "lucide-react";
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 
 export default function TransactionsHeader({
   onAddTransaction,
@@ -33,8 +33,8 @@ export default function TransactionsHeader({
     // Quando exibida em um fuso horário local, ela pode mudar para o dia anterior.
     // Substituir hífens por barras faz o navegador tratar a data como local.
     setDateRange({
-      from: filters.period.from ? new Date(filters.period.from.replace(/-/g, '/')) : undefined,
-      to: filters.period.to ? new Date(filters.period.to.replace(/-/g, '/')) : undefined,
+      from: filters.period.from ? parseISO(filters.period.from) : undefined,
+      to: filters.period.to ? parseISO(filters.period.to) : undefined,
     });
   }, [filters.period.from, filters.period.to]);
 

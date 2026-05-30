@@ -132,7 +132,7 @@ export default function ExpensesChart({ transactions, tags, isLoading, accounts 
 
       for (const transaction of transactions) {
         if (cancelled) return;
-        const transactionDate = new Date(transaction.transaction_date.replace(/-/g, '/'));
+        const transactionDate = parseISO(transaction.transaction_date);
         if (transaction.transaction_type !== 'expense') continue;
         if (transactionDate < start || transactionDate > end) continue;
 

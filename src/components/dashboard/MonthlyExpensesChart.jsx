@@ -83,7 +83,7 @@ export default function MonthlyExpensesChart({ transactions, isLoading, accounts
           if (cancelled) return;
           if (t.transaction_type !== 'expense') continue;
           try {
-            const txDate = new Date(t.transaction_date.replace(/-/g, '/'));
+            const txDate = parseISO(t.transaction_date);
             if (!isWithinInterval(txDate, { start: monthStart, end: monthEnd })) continue;
           } catch {
             continue;

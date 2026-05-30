@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, ArrowLeftRight, Calendar } from "lucide-react";
 import { motion } from "framer-motion";
+import { parseISO } from "date-fns";
 import { convertCurrency, formatCurrencyWithSymbol } from "@/components/utils/CurrencyConverter";
 
 export default function PeriodSummary({ transactions, filters, accounts }) {
@@ -64,8 +65,8 @@ export default function PeriodSummary({ transactions, filters, accounts }) {
 
   // Formatar período para exibição
   const formatPeriod = () => {
-    const fromDate = new Date(filters.period.from.replace(/-/g, '/'));
-    const toDate = new Date(filters.period.to.replace(/-/g, '/'));
+    const fromDate = parseISO(filters.period.from);
+    const toDate = parseISO(filters.period.to);
     
     return `${fromDate.toLocaleDateString('pt-BR')} - ${toDate.toLocaleDateString('pt-BR')}`;
   };

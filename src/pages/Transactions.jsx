@@ -64,8 +64,8 @@ const calculateProgressiveBalances = async (
         (t.transaction_type === 'transfer' && t.destination_account_id === filters.accountId)
       )
       .sort((a, b) => {
-        const dateA = new Date(a.transaction_date.replace(/-/g, '/')).getTime();
-        const dateB = new Date(b.transaction_date.replace(/-/g, '/')).getTime();
+        const dateA = parseISO(a.transaction_date).getTime();
+        const dateB = parseISO(b.transaction_date).getTime();
 
         // Secondary sort by created_at desc (if same date, newest created is first)
         // This MUST match the display order to align rows correctly
@@ -156,8 +156,8 @@ const calculateProgressiveBalances = async (
 
   const allTransactionsChronological = [...allSystemTransactions]
     .sort((a, b) => {
-      const dateA = new Date(a.transaction_date.replace(/-/g, '/')).getTime();
-      const dateB = new Date(b.transaction_date.replace(/-/g, '/')).getTime();
+      const dateA = parseISO(a.transaction_date).getTime();
+      const dateB = parseISO(b.transaction_date).getTime();
       if (dateA !== dateB) return dateA - dateB;
       return (new Date(a.created_at || 0)).getTime() - (new Date(b.created_at || 0)).getTime();
     });
@@ -450,8 +450,8 @@ export default function TransactionsPage() {
 
       return typeMatch && accountMatch && tagMatch && periodMatch && searchTermMatch;
     }).sort((a, b) => {
-      const dateA = new Date(a.transaction_date.replace(/-/g, '/')).getTime();
-      const dateB = new Date(b.transaction_date.replace(/-/g, '/')).getTime();
+      const dateA = parseISO(a.transaction_date).getTime();
+      const dateB = parseISO(b.transaction_date).getTime();
       if (dateA !== dateB) return dateB - dateA; // Descending Date
       return (new Date(b.created_at || 0)).getTime() - (new Date(a.created_at || 0)).getTime(); // Descending CreatedAt
     });
