@@ -47,17 +47,12 @@ export default function NetWorthCard({ accounts, isLoading, customNetWorth }) {
 
       try {
         const conversionPromises = accounts
-          .filter(acc => acc.is_active !== false)
           .map(async (account) => {
-            const balance = account.current_balance ?? account.initial_balance ?? 0;
+            const balance = parseFloat(account.current_balance);
+            const numericBalance = isNaN(balance) ? (parseFloat(account.initial_balance) || 0) : balance;
             const currency = account.currency || 'BRL';
 
-            const convertedBalance = await convertCurrency(balance, currency, 'BRL');
-
-            // Credit cards are liabilities, so their absolute value should always be subtracted
-            if (account.account_type === 'credit_card') {
-              return -Math.abs(convertedBalance);
-            }
+            const convertedBalance = await convertCurrency(numericBalance, currency, 'BRL');
             return convertedBalance;
           });
 

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { startOfMonth, endOfMonth, subMonths, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { convertCurrency } from "@/components/utils/CurrencyConverter";
 
 const LOCAL_STORAGE_KEY = 'financeApp_selectedParentTags';
 
-export default function ExpensesChart({ transactions, tags, isLoading }) {
+export default function ExpensesChart({ transactions, tags, isLoading, accounts }) {
   const [selectedPeriod, setSelectedPeriod] = useState("current_month");
   const [selectedParentTags, setSelectedParentTags] = useState({});
   const [parentTagsFilterOpen, setParentTagsFilterOpen] = useState(false);
+  const [chartData, setChartData] = useState([]);
+
+  const accountCurrencyMap = useMemo(
+    () => new Map((accounts || []).map(a => [a.id, a.currency || 'BRL'])),
+    [accounts]
+  );
   
   const periodOptions = [
     { value: "current_month", label: "Mês Atual" },
@@ -92,119 +99,91 @@ export default function ExpensesChart({ transactions, tags, isLoading }) {
     };
   };
 
-  const getChartData = () => {
-    if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
-      console.log("ExpensesChart: Nenhuma transação disponível");
-      return [];
-    }
+  useEffect(() => {
+    let cancelled = false;
+    const computeChartData = async () => {
+      if (!transactions?.length || !tags?.length) {
+        if (!cancelled) setChartData([]);
+        return;
+      }
 
-    if (!tags || !Array.isArray(tags) || tags.length === 0) {
-      console.log("ExpensesChart: Nenhuma tag disponível");
-      return [];
-    }
+      const { start, end } = getPeriodDates(selectedPeriod);
+      const tagMap = Object.fromEntries(tags.map(tag => [tag.id, tag]));
+      const parentTagMap = {};
+      const parentTagList = tags.filter(tag => !tag.parent_tag_id);
 
-    const { start, end } = getPeriodDates(selectedPeriod);
-    
-    console.log(`ExpensesChart: Período selecionado: ${selectedPeriod}`);
-    console.log(`ExpensesChart: Filtrando transações entre ${start.toISOString()} e ${end.toISOString()}`);
+      parentTagList.forEach(parentTag => {
+        parentTagMap[parentTag.id] = {
+          id: parentTag.id,
+          name: parentTag.name,
+          color: parentTag.color || '#6B7280',
+          total: 0,
+          count: 0
+        };
+      });
 
-    // Filtrar transações de despesa do período selecionado
-    const expenseTransactions = transactions.filter(t => {
-      // Usar .replace para tratar a data como local e evitar problemas de fuso horário
-      const transactionDate = new Date(t.transaction_date.replace(/-/g, '/'));
-
-      const isExpense = t.transaction_type === 'expense';
-      const isInPeriod = transactionDate >= start && transactionDate <= end;
-      
-      return isExpense && isInPeriod;
-    });
-
-    console.log(`ExpensesChart: ${expenseTransactions.length} transações de despesa encontradas no período.`);
-
-    // Criar mapa de tags para fácil acesso
-    const tagMap = Object.fromEntries(tags.map(tag => [tag.id, tag]));
-    
-    // Criar mapa de tags pai
-    const parentTagMap = {};
-    const parentTags = tags.filter(tag => !tag.parent_tag_id);
-    
-    parentTags.forEach(parentTag => {
-      parentTagMap[parentTag.id] = {
-        id: parentTag.id,
-        name: parentTag.name,
-        color: parentTag.color || '#6B7280',
+      parentTagMap['others'] = {
+        id: 'others',
+        name: 'Outras',
+        color: '#9CA3AF',
         total: 0,
         count: 0
       };
-    });
 
-    // Adicionar categoria para tags sem pai ou tags pai não encontradas
-    parentTagMap['others'] = {
-      id: 'others',
-      name: 'Outras',
-      color: '#9CA3AF',
-      total: 0,
-      count: 0
+      for (const transaction of transactions) {
+        if (cancelled) return;
+        const transactionDate = new Date(transaction.transaction_date.replace(/-/g, '/'));
+        if (transaction.transaction_type !== 'expense') continue;
+        if (transactionDate < start || transactionDate > end) continue;
+
+        const rawAmount = parseFloat(transaction.amount || 0);
+        if (rawAmount === 0) continue;
+
+        const currency = accountCurrencyMap.get(transaction.account_id) || 'BRL';
+        const amountInBRL = currency === 'BRL'
+          ? rawAmount
+          : await convertCurrency(rawAmount, currency, 'BRL', transaction.transaction_date);
+
+        const tagId = transaction.tag_id;
+        if (tagId && tagMap[tagId]) {
+          const tag = tagMap[tagId];
+          const parentTagId = tag.parent_tag_id || tag.id;
+
+          if (parentTagMap[parentTagId]) {
+            parentTagMap[parentTagId].total += amountInBRL;
+            parentTagMap[parentTagId].count += 1;
+          } else {
+            parentTagMap['others'].total += amountInBRL;
+            parentTagMap['others'].count += 1;
+          }
+        } else {
+          parentTagMap['others'].total += amountInBRL;
+          parentTagMap['others'].count += 1;
+        }
+      }
+
+      if (cancelled) return;
+
+      const result = Object.values(parentTagMap)
+        .filter(item => {
+          if (item.id === 'others') return item.total > 0;
+          return item.total > 0 && selectedParentTags[item.id];
+        })
+        .sort((a, b) => b.total - a.total)
+        .map(item => ({
+          name: item.name,
+          value: item.total,
+          count: item.count,
+          fill: item.color
+        }));
+
+      if (!cancelled) setChartData(result);
     };
 
-    // Agrupar transações por tag pai
-    expenseTransactions.forEach(transaction => {
-      const tagId = transaction.tag_id;
-      const amount = parseFloat(transaction.amount || 0);
-      
-      if (tagId && tagMap[tagId]) {
-        const tag = tagMap[tagId];
-        let parentTagId;
-        
-        if (tag.parent_tag_id) {
-          // É uma tag filha, encontrar o pai
-          parentTagId = tag.parent_tag_id;
-        } else {
-          // É uma tag pai
-          parentTagId = tag.id;
-        }
-        
-        if (parentTagMap[parentTagId]) {
-          parentTagMap[parentTagId].total += amount;
-          parentTagMap[parentTagId].count += 1;
-          console.log(`ExpensesChart: ✅ Adicionado à tag pai "${parentTagMap[parentTagId].name}": ${amount}`);
-        } else {
-          // Tag pai não encontrada, adicionar a "Outras"
-          parentTagMap['others'].total += amount;
-          parentTagMap['others'].count += 1;
-          console.log(`ExpensesChart: ⚠️ Tag pai não encontrada, adicionado a 'Outras': ${amount}`);
-        }
-      } else {
-        // Transação sem tag ou tag não encontrada
-        parentTagMap['others'].total += amount;
-        parentTagMap['others'].count += 1;
-        console.log(`ExpensesChart: ⚠️ Transação sem tag, adicionado a 'Outras': ${amount}`);
-      }
-    });
+    computeChartData();
+    return () => { cancelled = true; };
+  }, [transactions, tags, selectedPeriod, selectedParentTags, accountCurrencyMap]);
 
-    console.log("ExpensesChart: Resumo por tag pai:", parentTagMap);
-
-    // Filtrar apenas tags pai selecionadas e converter para array
-    const result = Object.values(parentTagMap)
-      .filter(item => {
-        if (item.id === 'others') {
-          return item.total > 0; // Mostrar "Outras" apenas se houver valores
-        }
-        return item.total > 0 && selectedParentTags[item.id]; // Mostrar apenas selecionadas
-      })
-      .sort((a, b) => b.total - a.total)
-      .map(item => ({
-        name: item.name,
-        value: item.total,
-        count: item.count,
-        fill: item.color
-      }));
-
-    console.log("ExpensesChart: Dados finais do gráfico (tags pai selecionadas):", result);
-    return result;
-  };
-
-  const chartData = getChartData();
   const totalExpenses = chartData.reduce((sum, item) => sum + item.value, 0);
   const { monthName } = getPeriodDates(selectedPeriod);
 

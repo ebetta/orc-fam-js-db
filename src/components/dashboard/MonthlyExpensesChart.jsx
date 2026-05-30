@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ShoppingCart, CalendarDays } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { convertCurrency } from "@/components/utils/CurrencyConverter";
 
 const formatCurrencyForAxis = (value) => {
   if (value === 0) return 'R$0';
@@ -44,46 +45,73 @@ const CustomTooltipContent = ({ active, payload, label }) => {
   return null;
 };
 
-export default function MonthlyExpensesChart({ transactions, isLoading }) {
+export default function MonthlyExpensesChart({ transactions, isLoading, accounts }) {
   const [period, setPeriod] = useState('6');
+  const [chartData, setChartData] = useState([]);
+
+  const accountCurrencyMap = useMemo(
+    () => new Map((accounts || []).map(a => [a.id, a.currency || 'BRL'])),
+    [accounts]
+  );
 
   const timePeriods = [
     { value: '6', label: 'Últimos 6 Meses' },
     { value: '12', label: 'Últimos 12 Meses' },
   ];
 
-  const chartData = useMemo(() => {
-    if (isLoading || !transactions?.length) return [];
+  useEffect(() => {
+    let cancelled = false;
+    const computeChartData = async () => {
+      if (isLoading || !transactions?.length) {
+        if (!cancelled) setChartData([]);
+        return;
+      }
 
-    const numberOfMonths = parseInt(period);
-    const today = new Date();
-    const data = [];
+      const numberOfMonths = parseInt(period);
+      const today = new Date();
+      const data = [];
 
-    for (let i = numberOfMonths - 1; i >= 0; i--) {
-      const targetDate = subMonths(today, i);
-      const monthStart = startOfMonth(targetDate);
-      const monthEnd = endOfMonth(targetDate);
+      for (let i = numberOfMonths - 1; i >= 0; i--) {
+        if (cancelled) return;
+        const targetDate = subMonths(today, i);
+        const monthStart = startOfMonth(targetDate);
+        const monthEnd = endOfMonth(targetDate);
 
-      const monthlyExpenses = transactions
-        .filter((t) => {
-          if (t.transaction_type !== 'expense') return false;
+        let monthlyTotal = 0;
+
+        for (const t of transactions) {
+          if (cancelled) return;
+          if (t.transaction_type !== 'expense') continue;
           try {
             const txDate = new Date(t.transaction_date.replace(/-/g, '/'));
-            return isWithinInterval(txDate, { start: monthStart, end: monthEnd });
+            if (!isWithinInterval(txDate, { start: monthStart, end: monthEnd })) continue;
           } catch {
-            return false;
+            continue;
           }
-        })
-        .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
-      data.push({
-        month: format(targetDate, 'MMM/yy', { locale: ptBR }),
-        despesas: monthlyExpenses,
-      });
-    }
+          const rawAmount = parseFloat(t.amount || 0);
+          if (rawAmount === 0) continue;
 
-    return data;
-  }, [transactions, period, isLoading]);
+          const currency = accountCurrencyMap.get(t.account_id) || 'BRL';
+          const amountInBRL = currency === 'BRL'
+            ? rawAmount
+            : await convertCurrency(rawAmount, currency, 'BRL', t.transaction_date);
+
+          monthlyTotal += amountInBRL;
+        }
+
+        data.push({
+          month: format(targetDate, 'MMM/yy', { locale: ptBR }),
+          despesas: monthlyTotal,
+        });
+      }
+
+      if (!cancelled) setChartData(data);
+    };
+
+    computeChartData();
+    return () => { cancelled = true; };
+  }, [transactions, period, isLoading, accountCurrencyMap]);
 
   // Highlight the current (last) month bar
   const maxValue = Math.max(...chartData.map((d) => d.despesas), 0);

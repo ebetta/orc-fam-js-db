@@ -127,6 +127,7 @@ export default function Dashboard() {
             transactions={allTransactions}
             tags={tags}
             isLoading={isLoading}
+            accounts={accounts}
           />
         </motion.div>
         <motion.div
@@ -166,6 +167,7 @@ export default function Dashboard() {
           <MonthlyExpensesChart
             transactions={allTransactions}
             isLoading={isLoading}
+            accounts={accounts}
           />
         </motion.div>
       </div>

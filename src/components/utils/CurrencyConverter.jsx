@@ -92,30 +92,22 @@ export const getCurrencyExchangeRate = async (fromCurrency, toCurrency = 'BRL') 
 
 // This function will now use getHistoricalExchangeRate when a targetDate is provided
 export const convertCurrency = async (amount, fromCurrency, toCurrency = 'BRL', targetDate = null) => {
-  console.log(`[convertCurrency] Solicitado converter: ${amount} ${fromCurrency} -> ${toCurrency}`, targetDate ? `na data ${targetDate}` : `(taxa mais recente)`);
-  if (fromCurrency === toCurrency) {
-    console.log('[convertCurrency] Moedas iguais, retornando amount original:', amount);
-    return amount;
+  const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+
+  if (fromCurrency === toCurrency) return numericAmount;
+
+  if (typeof numericAmount !== 'number' || isNaN(numericAmount)) {
+    return 0;
   }
-  if (typeof amount !== 'number' || isNaN(amount)) {
-    console.warn('[convertCurrency] Valor inválido fornecido:', amount, '. Retornando 0.');
-    return 0; // Retornar 0 se o valor não for um número válido
-  }
-  
+
   let rate;
   if (targetDate) {
-    console.log(`[convertCurrency] Usando getHistoricalExchangeRate para data ${targetDate}.`);
-    // Assumindo que getHistoricalExchangeRate também terá logs ou já é confiável
     rate = await getHistoricalExchangeRate(fromCurrency, targetDate, toCurrency);
   } else {
-    console.log(`[convertCurrency] Usando getCurrencyExchangeRate (taxa mais recente).`);
     rate = await getCurrencyExchangeRate(fromCurrency, toCurrency);
   }
-  console.log(`[convertCurrency] Taxa obtida para ${fromCurrency}->${toCurrency}: ${rate}`);
-  
-  const convertedAmount = amount * rate;
-  console.log(`[convertCurrency] Valor convertido: ${amount} * ${rate} = ${convertedAmount}`);
-  return convertedAmount;
+
+  return numericAmount * rate;
 };
 
 export const formatCurrencyWithSymbol = (amount, currency = 'BRL') => {
