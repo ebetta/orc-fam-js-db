@@ -958,7 +958,7 @@ export default function TransactionsV2Page() {
 
   return (
     <div className="v2-theme font-body-md text-body-md text-on-background bg-background min-h-screen">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div className="p-6 lg:p-10 space-y-8">
 
         {/* ── Page Header ── */}
         <motion.div
@@ -1061,14 +1061,14 @@ export default function TransactionsV2Page() {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-surface-container-low border-b border-outline-variant">
-                  <th className="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase">Data</th>
-                  <th className="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase">Descrição</th>
-                  <th className="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase">Categoria</th>
-                  <th className="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase">Conta</th>
-                  <th className="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase">Tipo</th>
-                  <th className="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase text-right">Valor</th>
-                  <th className="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase text-right">Saldo</th>
-                  <th className="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase">Ações</th>
+                  <th className="px-6 py-3 font-bold font-label-md text-on-surface uppercase tracking-wider text-left">Data</th>
+                  <th className="px-6 py-3 font-bold font-label-md text-on-surface uppercase tracking-wider text-left">Descrição</th>
+                  <th className="px-6 py-3 font-bold font-label-md text-on-surface uppercase tracking-wider text-left">Categoria</th>
+                  <th className="px-6 py-3 font-bold font-label-md text-on-surface uppercase tracking-wider text-left">Conta</th>
+                  <th className="px-6 py-3 font-bold font-label-md text-on-surface uppercase tracking-wider text-left">Tipo</th>
+                  <th className="px-6 py-3 font-bold font-label-md text-on-surface uppercase tracking-wider text-right">Valor</th>
+                  <th className="px-6 py-3 font-bold font-label-md text-on-surface uppercase tracking-wider text-right">Saldo</th>
+                  <th className="px-6 py-3 font-bold font-label-md text-on-surface uppercase tracking-wider text-left">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">
