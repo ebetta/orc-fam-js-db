@@ -154,5 +154,149 @@ button:focus-visible {
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 }
+
+/* Scoped styles for TransactionsV2 Page */
+.v2-theme {
+  --v2-primary: #006c49;
+  --v2-on-primary: #ffffff;
+  --v2-secondary: #4648d4;
+  --v2-on-secondary: #ffffff;
+  --v2-on-surface-variant: #3c4a42;
+  --v2-outline-variant: #bbcabf;
+  --v2-surface-container-lowest: #ffffff;
+  --v2-surface-container-low: #eff4ff;
+  --v2-surface-container-high: #dce9ff;
+  --v2-on-background: #0b1c30;
+}
+
+.v2-theme .text-secondary {
+  color: var(--v2-secondary) !important;
+}
+.v2-theme .bg-secondary {
+  background-color: var(--v2-secondary) !important;
+}
+.v2-theme .text-on-secondary {
+  color: var(--v2-on-secondary) !important;
+}
+.v2-theme .text-on-surface-variant {
+  color: var(--v2-on-surface-variant) !important;
+}
+.v2-theme .border-outline-variant {
+  border-color: var(--v2-outline-variant) !important;
+}
+.v2-theme .border-b-outline-variant {
+  border-bottom-color: var(--v2-outline-variant) !important;
+}
+.v2-theme .divide-outline-variant > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--v2-outline-variant) !important;
+}
+.v2-theme .bg-surface-container-lowest {
+  background-color: var(--v2-surface-container-lowest) !important;
+}
+.v2-theme .bg-surface-container-low {
+  background-color: var(--v2-surface-container-low) !important;
+}
+.v2-theme .bg-surface-container-high {
+  background-color: var(--v2-surface-container-high) !important;
+}
+.v2-theme .text-on-background {
+  color: var(--v2-on-background) !important;
+}
+.v2-theme .text-outline {
+  color: #6c7a71 !important;
+}
+.v2-theme .text-primary-v2 {
+  color: var(--v2-primary) !important;
+}
+.v2-theme .bg-primary-v2 {
+  background-color: var(--v2-primary) !important;
+}
+
+/* Glass Card */
+.v2-theme .glass-card {
+  background: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid var(--v2-outline-variant) !important;
+}
+
+/* Focus Ring */
+.v2-theme .focus\:ring-secondary:focus {
+  --tw-ring-color: var(--v2-secondary) !important;
+  ring-color: var(--v2-secondary) !important;
+}
+
+/* Typography styles matching HTML examples */
+.v2-theme .font-headline-lg {
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 700;
+}
+.v2-theme .text-headline-lg {
+  font-size: 32px !important;
+  line-height: 40px !important;
+  letter-spacing: -0.02em !important;
+}
+.v2-theme .font-headline-sm {
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 600;
+}
+.v2-theme .text-headline-sm {
+  font-size: 20px !important;
+  line-height: 28px !important;
+  letter-spacing: -0.01em !important;
+  color: var(--v2-on-background) !important;
+}
+.v2-theme .font-headline-md {
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 600;
+}
+.v2-theme .text-headline-md {
+  font-size: 24px !important;
+  line-height: 32px !important;
+  letter-spacing: -0.01em !important;
+}
+.v2-theme .font-label-md {
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 600;
+}
+.v2-theme .text-label-md {
+  font-size: 12px !important;
+  line-height: 16px !important;
+  letter-spacing: 0.05em !important;
+}
+.v2-theme .font-body-sm {
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 400;
+}
+.v2-theme .text-body-sm {
+  font-size: 14px !important;
+  line-height: 20px !important;
+}
+.v2-theme .font-body-md {
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 400;
+}
+.v2-theme .text-body-md {
+  font-size: 16px !important;
+  line-height: 24px !important;
+}
+
+/* Explicit font-weight overrides for the .v2-theme to ensure Tailwind classes work correctly */
+.v2-theme .font-bold {
+  font-weight: 700 !important;
+}
+.v2-theme .font-semibold {
+  font-weight: 600 !important;
+}
+.v2-theme .font-medium {
+  font-weight: 500 !important;
+}
+.v2-theme .font-normal {
+  font-weight: 400 !important;
+}
+

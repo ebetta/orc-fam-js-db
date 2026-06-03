@@ -14,7 +14,8 @@ import {
   // User, // User icon from lucide-react, might conflict with User state
   Settings,
   LogOut,
-  Upload
+  Upload,
+  Receipt
 } from "lucide-react";
 import {
   Sidebar,
@@ -74,6 +75,13 @@ const navigationItems = [
     icon: TrendingUp,
     color: "text-indigo-600",
     bgColor: "bg-indigo-50"
+  },
+  {
+    title: "Transações V2",
+    url: createPageUrl("TransactionsV2"),
+    icon: Receipt,
+    color: "text-violet-600",
+    bgColor: "bg-violet-50"
   },
   {
     title: "Importar",
