@@ -4,13 +4,16 @@ import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { api, auth } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
-import { startOfDay, endOfDay, parseISO, format } from "date-fns";
+import { startOfDay, endOfDay, parseISO, format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { createPageUrl } from "@/utils";
 
 import { convertCurrency, formatCurrencyWithSymbol } from "../components/utils/CurrencyConverter";
 
 import TransactionForm from "../components/transactions/TransactionForm";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
 
 import {
   Search,
@@ -23,7 +26,7 @@ import {
   Pencil,
   Trash2,
   X,
-  Calendar,
+  Calendar as CalendarIcon,
   Wallet,
   PiggyBank,
   CreditCard,
@@ -388,6 +391,7 @@ function AccountGrid({ accounts, balances, onAccountClick, activeAccountId }) {
           const currency = account.original_currency || account.currency || "BRL";
           const displayBalance = account.original_balance !== undefined ? account.original_balance : parseFloat(balance);
           const bankCfg = getBankColorConfig(account.bank || account.name);
+          const hasForeignCurrency = currency !== "BRL" && account.original_balance !== undefined;
 
           return (
             <motion.div
@@ -415,8 +419,13 @@ function AccountGrid({ accounts, balances, onAccountClick, activeAccountId }) {
                 {account.name}
               </p>
               <p className={`font-bold text-base ${isActive ? "text-white" : isNegative ? "text-error" : "text-on-background"}`}>
-                {fmtCurrency(displayBalance, currency)}
+                {fmtCurrency(parseFloat(balance), "BRL")}
               </p>
+              {hasForeignCurrency && (
+                <p className={`text-[10px] font-normal ${isActive ? "text-white/60" : "text-on-surface-variant"}`}>
+                  ({fmtCurrency(displayBalance, currency)})
+                </p>
+              )}
             </motion.div>
           );
         })}
@@ -426,6 +435,50 @@ function AccountGrid({ accounts, balances, onAccountClick, activeAccountId }) {
 }
 
 function FiltersBar({ filters, onFiltersChange, accounts, tags, onClearFilters, transactionsCount }) {
+  const [dateRange, setDateRange] = useState({
+    from: filters.period.from ? parseISO(filters.period.from) : undefined,
+    to: filters.period.to ? parseISO(filters.period.to) : undefined,
+  });
+
+  useEffect(() => {
+    setDateRange({
+      from: filters.period.from ? parseISO(filters.period.from) : undefined,
+      to: filters.period.to ? parseISO(filters.period.to) : undefined,
+    });
+  }, [filters.period.from, filters.period.to]);
+
+  const handleDateRangeChange = (range) => {
+    setDateRange(range);
+    onFiltersChange({
+      ...filters,
+      period: {
+        ...filters.period,
+        from: range?.from ? format(range.from, "yyyy-MM-dd") : null,
+        to: range?.to ? format(range.to, "yyyy-MM-dd") : null,
+      },
+    });
+  };
+
+  const setPresetPeriod = (period) => {
+    let from, to;
+    const today = new Date();
+    switch (period) {
+      case "this_month":
+        from = startOfMonth(today);
+        to = endOfMonth(today);
+        break;
+      case "last_month":
+        const lastMonthStart = startOfMonth(subMonths(today, 1));
+        from = lastMonthStart;
+        to = endOfMonth(lastMonthStart);
+        break;
+      default:
+        from = undefined;
+        to = undefined;
+    }
+    handleDateRangeChange({ from, to });
+  };
+
   const hasActiveFilters =
     filters.type !== "all" ||
     filters.accountId !== "all" ||
@@ -485,23 +538,40 @@ function FiltersBar({ filters, onFiltersChange, accounts, tags, onClearFilters, 
           ))}
         </select>
 
-        {/* Period From */}
-        <div className="flex items-center gap-1.5 bg-surface-container-low border-none rounded-xl px-4 py-3 font-label-md text-label-md text-on-surface-variant">
-          <Calendar className="w-4 h-4 text-outline flex-shrink-0" />
-          <input
-            type="date"
-            value={filters.period.from || ""}
-            onChange={(e) => onFiltersChange({ ...filters, period: { ...filters.period, from: e.target.value || null } })}
-            className="bg-transparent text-sm text-on-surface-variant focus:outline-none w-32 border-none p-0 focus:ring-0"
-          />
-          <span className="text-gray-400 mx-1">–</span>
-          <input
-            type="date"
-            value={filters.period.to || ""}
-            onChange={(e) => onFiltersChange({ ...filters, period: { ...filters.period, to: e.target.value || null } })}
-            className="bg-transparent text-sm text-on-surface-variant focus:outline-none w-32 border-none p-0 focus:ring-0"
-          />
-        </div>
+        {/* Period */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              className="flex items-center gap-1.5 bg-surface-container-low border-none rounded-xl px-4 py-3 font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high transition-colors"
+            >
+              <CalendarIcon className="w-4 h-4 text-outline flex-shrink-0" />
+              {dateRange?.from ? (
+                dateRange.to ? (
+                  <span className="text-sm">{format(dateRange.from, "dd/MM/yy")} - {format(dateRange.to, "dd/MM/yy")}</span>
+                ) : (
+                  <span className="text-sm">{format(dateRange.from, "dd/MM/yy")}</span>
+                )
+              ) : (
+                <span>Período</span>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <div className="p-2 space-x-1 flex">
+              <Button variant="ghost" size="sm" onClick={() => setPresetPeriod("this_month")}>Este Mês</Button>
+              <Button variant="ghost" size="sm" onClick={() => setPresetPeriod("last_month")}>Mês Passado</Button>
+              <Button variant="ghost" size="sm" onClick={() => handleDateRangeChange({})}>Limpar</Button>
+            </div>
+            <Calendar
+              initialFocus
+              mode="range"
+              defaultMonth={dateRange?.from}
+              selected={dateRange}
+              onSelect={handleDateRangeChange}
+              numberOfMonths={2}
+            />
+          </PopoverContent>
+        </Popover>
 
         {/* Clear */}
         {hasActiveFilters && (
