@@ -17,6 +17,7 @@ export default function Dashboard() {
 
   const [allTransactions, setAllTransactions] = useState([]);
   const [tags, setTags] = useState([]);
+  const [patrimonyData, setPatrimonyData] = useState([]);
   
   const [isLoading, setIsLoading] = useState(true);
   const { preloadExchangeRates } = useCurrencyConversion();
@@ -54,6 +55,10 @@ export default function Dashboard() {
       const { data: tagsData, error: tagsError } = await api.get('tags');
       if (tagsError) console.error("Erro ao carregar tags:", tagsError);
       setTags(tagsData || []);
+
+      const { data: patrimonyRes, error: patrimonyError } = await api.get('patrimony');
+      if (patrimonyError) console.error("Erro ao carregar patrimônio:", patrimonyError);
+      setPatrimonyData(patrimonyRes || []);
 
       // Pré-carregar cotações
       const currentAccounts = accountsData || [];
@@ -131,8 +136,7 @@ export default function Dashboard() {
           className="h-full"
         >
           <PatrimonyEvolutionChart
-            accounts={accounts}
-            transactions={allTransactions}
+            patrimonyData={patrimonyData}
             isLoading={isLoading}
           />
         </motion.div>

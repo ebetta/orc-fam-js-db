@@ -1,13 +1,12 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, CalendarDays } from 'lucide-react';
-import { format, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { TrendingUp, CalendarDays, TrendingDown } from 'lucide-react';
+import { format, subMonths, parseISO, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { convertCurrency } from '../utils/CurrencyConverter';
 
 const formatCurrencyForAxis = (value) => {
   if (value === 0) return 'R$0';
@@ -22,23 +21,40 @@ const formatCurrencyForAxis = (value) => {
 
 const CustomTooltipContent = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
-    const value = payload[0].value;
     return (
       <div className="bg-background/90 backdrop-blur-sm p-3 border border-border rounded-lg shadow-lg">
         <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-lg font-bold" style={{ color: value < 0 ? '#dc2626' : payload[0].color }}>
-          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-        </p>
+        {payload.map((entry, idx) => {
+          if (entry.value == null) return null;
+          const isProjection = entry.dataKey === 'projecao';
+          return (
+            <p key={idx} className="text-lg font-bold" style={{ color: entry.color }}>
+              {isProjection && <span className="text-xs font-normal mr-1">Proj.</span>}
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(entry.value)}
+            </p>
+          );
+        })}
       </div>
     );
   }
   return null;
 };
 
-export default function PatrimonyEvolutionChart({ accounts, transactions, isLoading }) {
-  const [period, setPeriod] = useState("6m");
-  const [chartData, setChartData] = useState([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+function linearRegression(values) {
+  const n = values.length;
+  if (n < 2) return null;
+  const indices = values.map((_, i) => i);
+  const sumX = indices.reduce((a, b) => a + b, 0);
+  const sumY = values.reduce((a, b) => a + b, 0);
+  const sumXY = indices.reduce((sum, x, i) => sum + x * values[i], 0);
+  const sumXX = indices.reduce((sum, x) => sum + x * x, 0);
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+  return { slope, intercept };
+}
+
+export default function PatrimonyEvolutionChart({ patrimonyData, isLoading }) {
+  const [period, setPeriod] = React.useState("6m");
 
   const timePeriods = [
     { value: "3m", label: "Últimos 3 Meses" },
@@ -46,179 +62,74 @@ export default function PatrimonyEvolutionChart({ accounts, transactions, isLoad
     { value: "12m", label: "Último Ano" },
   ];
 
-  useEffect(() => {
-    const calculatePatrimonyEvolution = async () => {
-      if (isLoading || !accounts.length) {
-        setChartData([]);
-        return;
-      }
+  const chartData = useMemo(() => {
+    if (!patrimonyData || patrimonyData.length === 0) return [];
 
-      setIsProcessing(true);
-      const numberOfMonths = parseInt(period);
-      const data = [];
-      const today = new Date();
+    const numberOfMonths = parseInt(period);
+    const cutoff = subMonths(new Date(), numberOfMonths);
 
-      try {
-        // Obter todas as conversões de moeda necessárias de uma vez pode ser otimizado depois,
-        // mas vamos manter a lógica por conta para simplicidade agora.
+    const historical = patrimonyData
+      .filter(item => {
+        const itemDate = parseISO(item.year_month + '-01');
+        return itemDate >= cutoff;
+      })
+      .map(item => ({
+        month: format(parseISO(item.year_month + '-01'), "MMM/yy", { locale: ptBR }),
+        patrimonio: parseFloat(item.net_worth_brl) || 0,
+        projecao: null,
+      }));
 
-        // Mapear todas as transações com datas normalizadas para facilitar comparação
-        const normalizedTransactions = transactions.map(t => ({
-          ...t,
-          normalizedDate: parseISO(t.transaction_date)
-        }));
+    if (period !== "12m") return historical;
 
-        // Para cada mês no período (do passado para o presente)
-        // A lógica regressiva é eficiente se calcularmos o ponto inicial (hoje)
-        // e formos voltando no tempo? 
-        // Na verdade, para plotar o gráfico, precisamos do valor em N pontos no tempo.
-        // Ponto 1: Fim do mês X (Ex: 01/Jan a 31/Jan). 
-        // Saldo em 31/Jan = Saldo Atual (Hoje) - Transações entre (31/Jan e Hoje).
-        // Se Hoje é 15/Fev. 
-        // Saldo 31/Jan = Saldo 15/Fev - (Tx de 01/Fev a 15/Fev).
+    const values = historical.map(d => d.patrimonio);
+    const reg = linearRegression(values);
+    if (!reg) return historical;
 
-        // Vamos iterar pelos meses desejados.
-        for (let i = numberOfMonths - 1; i >= 0; i--) {
-          const targetMonthDate = subMonths(today, i);
-          const monthEnd = endOfMonth(targetMonthDate);
+    const lastDate = patrimonyData.reduce((latest, item) => {
+      const d = parseISO(item.year_month + '-01');
+      return d > latest ? d : latest;
+    }, new Date(0));
 
-          let monthNetWorthInBRL = 0;
+    const projection = [];
 
-          for (const account of accounts) {
-            if (account.is_active === false) continue;
-
-            const accountCurrency = account.currency || 'BRL';
-
-            // PONTO DE PARTIDA: Saldo Atual da Conta (Database/Dashboard)
-            let currentBalance = parseFloat(account.current_balance);
-            if (isNaN(currentBalance)) {
-              currentBalance = parseFloat(account.initial_balance) || 0;
-            }
-
-            let historicalBalance = currentBalance;
-
-            // Lógica Regressiva: Remover transações que aconteceram DEPOIS do monthEnd até HOJE/Fim dos tempos.
-            // Ou seja, filtrar transações onde data > monthEnd.
-            // Para cada uma dessas transações, desfazer o efeito.
-
-            const transactionsAfterPeriod = normalizedTransactions.filter(t => {
-              return t.normalizedDate > monthEnd &&
-                (t.account_id === account.id || t.destination_account_id === account.id);
-            });
-
-            transactionsAfterPeriod.forEach(t => {
-              const amount = parseFloat(t.amount || 0);
-
-              // Se é cartão de crédito, o saldo geralmente é positivo na UI mas representa dívida?
-              // No DB, users costumam guardar como positivo (valor da fatura) ou negativo?
-              // Baseado no NetWorthCard: "Credit cards are liabilities, so their absolute value should always be subtracted"
-              // E no código anterior, parecia tratar saldo como valor nominal.
-              // Vamos assumir que 'historicalBalance' segue a mesma convenção do 'currentBalance'.
-
-              // Logica de Desfazer (Inverse Operation):
-              // Se foi Income (recebeu): Saldo era menor -> Subtrair
-              // Se foi Expense (gastou): Saldo era maior -> Somar
-
-              if (account.account_type === 'credit_card') {
-                // Cartão de Crédito é tricky. Geralmente Saldo aumenta com Expense e diminui com Pagamento (Transfer/Income).
-                // Se o currentBalance é 1000 (dívida), e gastou 100 hoje (expense). Ontem devia 900.
-                // Undo Expense: 1000 - 100 = 900. (Expense diminui o saldo devedor na volta)
-                // Se pagou 500 hoje (Income/Transfer). Ontem devia 1500.
-                // Undo Payment: 1000 + 500 = 1500.
-
-                if (t.account_id === account.id) {
-                  if (t.transaction_type === 'expense') {
-                    // Forward: +Dívida. Backward: -Dívida.
-                    historicalBalance -= amount;
-                  } else if (t.transaction_type === 'income') { // Pagamento/Estorno
-                    // Forward: -Dívida. Backward: +Dívida.
-                    historicalBalance += amount;
-                  } else if (t.transaction_type === 'transfer') { // Saque?
-                    // Se for 'transfer' saindo do cartão (saque cartão credito?) -> Aumenta divida
-                    // Forward: +Divida. Backward: -Divida.
-                    historicalBalance -= amount;
-                  }
-                } else if (t.destination_account_id === account.id) {
-                  // Transferencia entrando (Pagamento de fatura vindo de outra conta)
-                  // Forward: -Divida. Backward: +Divida.
-                  historicalBalance += amount;
-                }
-
-              } else {
-                // Contas Comuns (Checking, Investment, etc)
-                if (t.account_id === account.id) {
-                  if (t.transaction_type === 'income') {
-                    // Forward: += amount. Backward: -= amount
-                    historicalBalance -= amount;
-                  } else if (t.transaction_type === 'expense') {
-                    // Forward: -= amount. Backward: += amount
-                    historicalBalance += amount;
-                  } else if (t.transaction_type === 'transfer') {
-                    // Transferencia saindo
-                    // Forward: -= amount. Backward: += amount
-                    historicalBalance += amount;
-                  }
-                } else if (t.destination_account_id === account.id) {
-                  // Transferencia entrando
-                  // Forward: += amount. Backward: -= amount
-                  historicalBalance -= amount;
-                }
-              }
-            });
-
-            // Converter o saldo histórico calculado para BRL
-            const accountBalanceInBRL = await convertCurrency(
-              historicalBalance,
-              accountCurrency,
-              'BRL'
-            );
-
-            // Add to Net Worth
-            if (account.account_type === 'credit_card') {
-              // Subtrair dívida do patrimônio
-              monthNetWorthInBRL -= Math.abs(accountBalanceInBRL);
-            } else {
-              monthNetWorthInBRL += accountBalanceInBRL;
-            }
-
-            // Pequena pausa para UI responsiva
-            await new Promise(resolve => setTimeout(resolve, 5));
-          }
-
-          data.push({
-            month: format(monthEnd, "MMM/yy", { locale: ptBR }), // Usar monthEnd para ser fiel à data
-            patrimonio: monthNetWorthInBRL,
-          });
-
-          // Pausa entre meses
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
-
-        setChartData(data);
-      } catch (error) {
-        console.error('Erro ao calcular evolução do patrimônio (Regressivo):', error);
-        setChartData([]);
-      }
-
-      setIsProcessing(false);
+    // Projeção para o mês atual (conecta ao último ponto histórico)
+    const currentProjected = reg.intercept + reg.slope * (values.length - 1);
+    historical[historical.length - 1] = {
+      ...historical[historical.length - 1],
+      projecao: Math.round(currentProjected * 100) / 100,
     };
 
-    calculatePatrimonyEvolution();
-  }, [accounts, transactions, period, isLoading]);
+    // Projeção para os próximos 3 meses
+    for (let k = 0; k < 3; k++) {
+      const projDate = addMonths(lastDate, k + 1);
+      const projectedValue = reg.intercept + reg.slope * (values.length + k);
+      projection.push({
+        month: format(projDate, "MMM/yy", { locale: ptBR }),
+        patrimonio: null,
+        projecao: Math.round(projectedValue * 100) / 100,
+      });
+    }
 
-  const isChartLoading = isLoading || isProcessing;
+    return [...historical, ...projection];
+  }, [patrimonyData, period]);
+
+  const isChartLoading = isLoading;
+  const trend = chartData.some(d => d.projecao != null);
 
   return (
     <Card className="shadow-lg border-0 h-full flex flex-col">
       <CardHeader className="border-b bg-gray-50 flex flex-row items-center justify-between py-3">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-green-600" />
+          {trend ? (
+            <TrendingDown className="w-5 h-5 text-orange-500" />
+          ) : (
+            <TrendingUp className="w-5 h-5 text-green-600" />
+          )}
           Evolução do Patrimônio
-          {isProcessing && (
-            <div className="text-xs text-blue-600 flex items-center gap-1 ml-2">
-              <div className="w-3 h-3 border border-blue-600 border-t-transparent rounded-full animate-spin" />
-              Convertendo...
-            </div>
+          {trend && (
+            <span className="text-xs font-normal text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+              mês atual +3 projetados
+            </span>
           )}
         </CardTitle>
         <Select value={period} onValueChange={setPeriod}>
@@ -273,7 +184,21 @@ export default function PatrimonyEvolutionChart({ accounts, transactions, isLoad
                 dot={{ r: 4, fill: "#16a34a", strokeWidth: 0 }}
                 activeDot={{ r: 6, fill: "#16a34a", stroke: '#dcfce7', strokeWidth: 2 }}
                 name="Patrimônio (BRL)"
+                connectNulls={false}
               />
+              {trend && (
+                <Line
+                  type="monotone"
+                  dataKey="projecao"
+                  stroke="#f97316"
+                  strokeWidth={2}
+                  strokeDasharray="6 3"
+                  dot={{ r: 4, fill: "#f97316", strokeWidth: 0 }}
+                  activeDot={{ r: 6, fill: "#f97316", stroke: '#fff7ed', strokeWidth: 2 }}
+                  name="Projeção"
+                  connectNulls={false}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         ) : (
