@@ -1,7 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-// import { Tag } from "@/api/entities"; // Removed
-// import { Transaction } from "@/api/entities"; // Removed
-// import { Budget } from "@/api/entities"; // Removed
 import { api } from "@/lib/api"; 
 import { motion } from "framer-motion";
 import { FileDown, Printer, X } from 'lucide-react';

@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect } from "react";
-// import { Tag } from "@/api/entities"; // Remove old entity
 import { api, auth } from "@/lib/api";
 import { motion } from "framer-motion";
 
@@ -58,10 +57,8 @@ export default function TagsPage() {
       // For editing, RLS will protect, user object not strictly needed for the update call itself.
 
       if (isEditing) {
-        // Ensure parent_tag_id is renamed to parent_tag_id before sending to Supabase
-        const { parent_tag_id_base44, ...restOfTagData } = tagData;
         const dataToUpdate = {
-          ...restOfTagData,
+          ...tagData,
           parent_tag_id: tagData.parent_tag_id !== undefined ? tagData.parent_tag_id : editingTag.parent_tag_id,
         };
 
@@ -97,10 +94,8 @@ export default function TagsPage() {
           });
         }
       } else { // Creating new tag
-        // Ensure parent_tag_id is renamed to parent_tag_id
-        const { parent_tag_id_base44, ...restOfTagData } = tagData;
         let finalTagData = {
-          ...restOfTagData,
+          ...tagData,
           parent_tag_id: tagData.parent_tag_id, // Use the correct field from form
           user_id: user.id
         };

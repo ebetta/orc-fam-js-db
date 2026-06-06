@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-// import { User as UserEntity } from "@/api/entities"; // Remove Base44 User entity
 import { auth } from "@/lib/api";
 
 const UserContext = createContext(null);

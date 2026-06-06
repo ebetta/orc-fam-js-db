@@ -1,8 +1,5 @@
 
 import React, { useState, useEffect, useCallback } from "react";
-// import { Budget } from "@/api/entities"; // Removed
-// import { Tag } from "@/api/entities"; // Removed
-// import { Transaction } from "@/api/entities"; // Removed
 import { api, auth } from "@/lib/api";
 import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";

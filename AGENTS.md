@@ -36,8 +36,3 @@
 - **Style guide in `GEMINI.md`**: Material Design principles, paper-texture cards, vibrant colors, elevation shadows for hierarchy, responsive animations — follow for any new components/pages.
 - Icons: `lucide-react`. Motion: `framer-motion`. Forms: `react-hook-form` + `zod`.
 
-## Legacy Base44 leftovers (do not revive)
-- `src/api/integrations.js` imports a missing `./base44Client`
-- `src/pages/Original_Budgets.jsx` is a backup copy
-- Some data-mapping code has `_base44` fallback fields
-- `README.md` is stale Base44 boilerplate

@@ -1,9 +1,5 @@
 
 import React, { useState, useEffect } from "react";
-// import { Account } from "@/api/entities"; // Removed
-// import { Transaction } from "@/api/entities"; // Removed
-// import { Tag } from "@/api/entities"; // Removed
-// import { User } from "@/api/entities"; // Removed
 import { api } from "@/lib/api"; 
 import { motion } from "framer-motion";
 import { useCurrencyConversion } from "../components/utils/CurrencyConverter";
@@ -28,9 +24,7 @@ export default function Dashboard() {
   useEffect(() => {
     // User data is already available in Layout or via supabase.auth.getUser() directly if needed
     // For this dashboard, we'll fetch user data again if WelcomeCard needs specific fields not in session.
-    // However, the `user` state here was from Base44 User.me(). Supabase user is handled by Layout.
-    // We can get it from supabase.auth.getUser() if needed by WelcomeCard.
-    // For now, let's fetch Supabase user data for the WelcomeCard.
+    // Fetch Supabase user data for the WelcomeCard.
     
     loadDashboardData();
   }, []);

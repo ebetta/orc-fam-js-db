@@ -128,9 +128,9 @@ export default function TransactionsList({
   const getTagName = (tagId) => tags.find(tag => tag.id === tagId)?.name || "N/A";
 
   // Helper to get the correct ID for accounts/tags from transaction object
-  const getTransactionAccountId = (transaction) => transaction.account_id_base44 || transaction.account_id;
-  const getTransactionTagId = (transaction) => transaction.tag_id_base44 || transaction.tag_id;
-  const getTransactionDestinationAccountId = (transaction) => transaction.destination_account_id_base44 || transaction.destination_account_id;
+  const getTransactionAccountId = (transaction) => transaction.account_id;
+  const getTransactionTagId = (transaction) => transaction.tag_id;
+  const getTransactionDestinationAccountId = (transaction) => transaction.destination_account_id;
 
   // Removed internal calculateProgressiveBalances, useEffect for it, and related states (transactionsWithBalances, isCalculatingBalances)
   // The `transactions` prop now comes pre-calculated with `progressiveBalance` and `progressiveBalanceCurrency` from the parent.

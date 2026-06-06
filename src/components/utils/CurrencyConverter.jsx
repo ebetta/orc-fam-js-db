@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-// import { InvokeLLM } from "@/api/integrations"; // Removed
-// import { ExchangeRate } from "@/api/entities"; // Removed
 import { api } from "@/lib/api";
 
 // Cache em memória para cotações já buscadas na sessão atual

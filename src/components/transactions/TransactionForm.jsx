@@ -36,7 +36,6 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
 
   useEffect(() => {
     // Reset form if transaction prop changes or for new transaction
-    // Parent component (TransactionsPage) already maps _base44 fields.
     // Here, we rely on transaction.account_id, transaction.tag_id etc.
     setFormData({
       description: transaction?.description || "",

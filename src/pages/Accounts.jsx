@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-// import { Account } from "@/api/entities"; // Remove old entity
 import { api, auth } from "@/lib/api"; 
 import { Button } from "@/components/ui/button";
 // import { Plus } from "lucide-react"; // Plus is not directly used here

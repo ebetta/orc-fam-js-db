@@ -1,9 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom"; // <<< ADICIONAR IMPORT
-// import { Transaction } from "@/api/entities"; // Removed
-// import { Account } from "@/api/entities"; // Removed
-// import { Tag } from "@/api/entities"; // Removed
 import { api, auth } from "@/lib/api"; 
 import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
@@ -331,9 +328,9 @@ export default function TransactionsPage() {
       const rawTransactions = transactionsResponse.data || [];
       const mappedTransactions = rawTransactions.map(t => ({
         ...t,
-        account_id: t.account_id_base44 || t.account_id,
-        tag_id: t.tag_id_base44 || t.tag_id,
-        destination_account_id: t.destination_account_id_base44 || t.destination_account_id,
+        account_id: t.account_id,
+        tag_id: t.tag_id,
+        destination_account_id: t.destination_account_id,
       }));
 
       setTransactions(mappedTransactions);

@@ -114,7 +114,6 @@ Tabela com o histórico de entradas, saídas e transferências entre contas.
 ```sql
 CREATE TABLE public.transactions (
   id uuid NOT NULL DEFAULT extensions.uuid_generate_v4 (),
-  id_base44 text NULL,
   user_id uuid NOT NULL,
   description text NOT NULL,
   amount numeric NOT NULL,

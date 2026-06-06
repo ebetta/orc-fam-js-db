@@ -838,9 +838,9 @@ export default function TransactionsV2Page() {
       const rawTransactions = transRes.data || [];
       const mappedTransactions = rawTransactions.map((t) => ({
         ...t,
-        account_id: t.account_id_base44 || t.account_id,
-        tag_id: t.tag_id_base44 || t.tag_id,
-        destination_account_id: t.destination_account_id_base44 || t.destination_account_id,
+        account_id: t.account_id,
+        tag_id: t.tag_id,
+        destination_account_id: t.destination_account_id,
       }));
 
       setTransactions(mappedTransactions);
