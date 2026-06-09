@@ -3,13 +3,13 @@
 import React, { createContext, useContext } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom"; // Added useNavigate
 import { createPageUrl } from "@/utils";
-import { 
-  Home, 
-  CreditCard, 
-  Tag, 
-  Target, 
+import {
+  Home,
+  CreditCard,
+  Tag,
+  Target,
   TrendingUp,
-  BarChart, 
+  BarChart,
   Menu,
   // User, // User icon from lucide-react, might conflict with User state
   Settings,
@@ -55,7 +55,7 @@ const navigationItems = [
     bgColor: "bg-blue-50"
   },
   {
-    title: "Tags",
+    title: "Categorias",
     url: createPageUrl("Tags"),
     icon: Tag,
     color: "text-purple-600",
@@ -122,8 +122,8 @@ export default function Layout({ children, currentPageName }) {
     if (error) {
       console.error("Error logging out:", error);
     }
-    setUser(null); 
-    navigate("/login"); 
+    setUser(null);
+    navigate("/login");
   };
 
   // If there's no user object, it might mean auth state is still loading or user is logged out.
@@ -149,7 +149,7 @@ export default function Layout({ children, currentPageName }) {
             --background: #FAFAFA;
           }
         `}</style>
-        
+
         <Sidebar className="border-r-0 shadow-md bg-white">
           <SidebarHeader className="border-b border-gray-100 p-4">
             <div className="flex flex-col items-center text-center">
@@ -160,7 +160,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
             </div>
           </SidebarHeader>
-          
+
           <SidebarContent className="p-4">
             <SidebarGroup>
               <SidebarGroupLabel className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">
@@ -172,12 +172,12 @@ export default function Layout({ children, currentPageName }) {
                     const isActive = location.pathname === item.url;
                     return (
                       <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton 
-                          asChild 
+                        <SidebarMenuButton
+                          asChild
                           className={`
                             h-12 rounded-xl transition-all duration-300 hover:scale-[1.02] 
-                            ${isActive 
-                              ? `${item.bgColor} ${item.color} shadow-md border border-opacity-20` 
+                            ${isActive
+                              ? `${item.bgColor} ${item.color} shadow-md border border-opacity-20`
                               : 'hover:bg-gray-50 text-gray-700'
                             }
                           `}

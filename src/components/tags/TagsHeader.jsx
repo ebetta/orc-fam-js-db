@@ -11,19 +11,19 @@ export default function TagsHeader({ onAddTag, tagsCount, onExpandAll, onCollaps
           <div className="text-white">
             <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
               <TagIcon className="w-8 h-8" />
-              Gerenciar Tags
+              Gerenciar Categorias
             </h1>
             <p className="text-purple-100 text-lg">
-              Organize suas transações com tags personalizadas e hierárquicas
+              Organize suas transações com categorias personalizadas e hierárquicas
             </p>
             <p className="text-purple-200 text-sm mt-1">
               {tagsCount} tag{tagsCount !== 1 ? 's' : ''} cadastrada{tagsCount !== 1 ? 's' : ''}
             </p>
           </div>
-          
+
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex gap-2">
-              <Button 
+              <Button
                 onClick={onExpandAll}
                 variant="outline"
                 size="sm"
@@ -32,7 +32,7 @@ export default function TagsHeader({ onAddTag, tagsCount, onExpandAll, onCollaps
                 <ChevronDown className="w-4 h-4 mr-2" />
                 Expandir Todos
               </Button>
-              <Button 
+              <Button
                 onClick={onCollapseAll}
                 variant="outline"
                 size="sm"
@@ -42,9 +42,9 @@ export default function TagsHeader({ onAddTag, tagsCount, onExpandAll, onCollaps
                 Colapsar Todos
               </Button>
             </div>
-            <Button 
+            <Button
               onClick={onAddTag}
-              size="lg" 
+              size="lg"
               className="bg-white text-purple-700 hover:bg-purple-50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
             >
               <Plus className="w-5 h-5 mr-2" />
