@@ -54,7 +54,7 @@ function linearRegression(values) {
 }
 
 export default function PatrimonyEvolutionChart({ patrimonyData, isLoading }) {
-  const [period, setPeriod] = React.useState("6m");
+  const [period, setPeriod] = React.useState("12m");
 
   const timePeriods = [
     { value: "3m", label: "Últimos 3 Meses" },
@@ -117,17 +117,17 @@ export default function PatrimonyEvolutionChart({ patrimonyData, isLoading }) {
   const trend = chartData.some(d => d.projecao != null);
 
   return (
-    <Card className="shadow-lg border-0 h-full flex flex-col">
-      <CardHeader className="border-b bg-gray-50 flex flex-row items-center justify-between py-3">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
+    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm h-full flex flex-col rounded-2xl">
+      <CardHeader className="border-b border-outline-variant bg-surface-container-low flex flex-row items-center justify-between py-3">
+        <CardTitle className="font-headline-sm text-headline-sm flex items-center gap-2">
           {trend ? (
-            <TrendingDown className="w-5 h-5 text-orange-500" />
+            <TrendingDown className="w-5 h-5 text-tertiary" />
           ) : (
-            <TrendingUp className="w-5 h-5 text-green-600" />
+            <TrendingUp className="w-5 h-5 text-primary-v2" />
           )}
           Evolução do Patrimônio
           {trend && (
-            <span className="text-xs font-normal text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+            <span className="font-label-md text-label-md font-normal text-tertiary bg-[#ff7e2d]/10 px-2 py-0.5 rounded-full">
               mês atual +3 projetados
             </span>
           )}

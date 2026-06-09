@@ -1,39 +1,35 @@
 
-import React, { useState, useEffect } from "react";
-import { api } from "@/lib/api"; 
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
 import { motion } from "framer-motion";
-import { useCurrencyConversion } from "../components/utils/CurrencyConverter";
+import { useCurrencyConversion, convertCurrency } from "../components/utils/CurrencyConverter";
 
 import WelcomeCard from "../components/dashboard/WelcomeCard";
-import NetWorthCard from "../components/dashboard/NetWorthCard";
 import AccountsList from "../components/dashboard/AccountsList";
 
 import ExpensesChart from "../components/dashboard/ExpensesChart";
 import PatrimonyEvolutionChart from "../components/dashboard/PatrimonyEvolutionChart";
 import MonthlyExpensesChart from "../components/dashboard/MonthlyExpensesChart";
 
+const stagger = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.4 } };
+
 export default function Dashboard() {
   const [accounts, setAccounts] = useState([]);
-
   const [allTransactions, setAllTransactions] = useState([]);
   const [tags, setTags] = useState([]);
   const [patrimonyData, setPatrimonyData] = useState([]);
-  
   const [isLoading, setIsLoading] = useState(true);
+  const [totalNetWorth, setTotalNetWorth] = useState(0);
+  const [isCalculatingNetWorth, setIsCalculatingNetWorth] = useState(false);
   const { preloadExchangeRates } = useCurrencyConversion();
 
   useEffect(() => {
-    // User data is already available in Layout or via supabase.auth.getUser() directly if needed
-    // For this dashboard, we'll fetch user data again if WelcomeCard needs specific fields not in session.
-    // Fetch Supabase user data for the WelcomeCard.
-    
     loadDashboardData();
   }, []);
 
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      // Fetch data using Supabase
       const { data: accountsData, error: accountsError } = await api.get('accounts', { _sort: 'updated_at', _order: 'desc' });
       if (accountsError) console.error("Erro ao carregar contas:", accountsError);
 
@@ -46,12 +42,10 @@ export default function Dashboard() {
       }));
       setAccounts(processedAccounts);
 
-
-
       const { data: allTransactionsData, error: allTransactionsError } = await api.get('transactions', { _sort: 'transaction_date', _order: 'desc' });
       if (allTransactionsError) console.error("Erro ao carregar todas as transações:", allTransactionsError);
       setAllTransactions(allTransactionsData || []);
-      
+
       const { data: tagsData, error: tagsError } = await api.get('tags');
       if (tagsError) console.error("Erro ao carregar tags:", tagsError);
       setTags(tagsData || []);
@@ -60,34 +54,45 @@ export default function Dashboard() {
       if (patrimonyError) console.error("Erro ao carregar patrimônio:", patrimonyError);
       setPatrimonyData(patrimonyRes || []);
 
-      // Pré-carregar cotações
       const currentAccounts = accountsData || [];
       if (currentAccounts.length > 0) {
         const uniqueCurrencies = [...new Set(currentAccounts.map(acc => acc.currency || 'BRL'))];
         const foreignCurrencies = uniqueCurrencies.filter(curr => curr !== 'BRL');
-        
         if (foreignCurrencies.length > 0) {
-          console.log('Pré-carregando cotações para:', foreignCurrencies);
           await preloadExchangeRates(foreignCurrencies);
         }
       }
-
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
     }
     setIsLoading(false);
   };
 
-  const calculateNetWorth = () => {
-    // Simplified: Sum of initial balances. True net worth requires transaction processing.
-    // This matches the change made in Accounts where current_balance was removed.
-    // For a more accurate dashboard net worth, we'd need to calculate it based on transactions.
-    // This can be a future enhancement.
-    return accounts.reduce((total, account) => {
-      if (account.is_active === false) return total;
-      return total + (parseFloat(account.initial_balance) || 0);
-    }, 0);
-  };
+  useEffect(() => {
+    const calculateNetWorth = async () => {
+      if (isLoading || !accounts.length) { setIsCalculatingNetWorth(false); return; }
+      setIsCalculatingNetWorth(true);
+      try {
+        let totalInBRL = 0;
+        const conversionPromises = accounts
+          .filter(acc => acc.is_active !== false)
+          .map(async (account) => {
+            const balance = parseFloat(account.current_balance);
+            const numericBalance = isNaN(balance) ? (parseFloat(account.initial_balance) || 0) : balance;
+            const currency = account.currency || 'BRL';
+            return convertCurrency(numericBalance, currency, 'BRL');
+          });
+        const convertedBalances = await Promise.all(conversionPromises);
+        totalInBRL = convertedBalances.reduce((sum, balance) => sum + balance, 0);
+        setTotalNetWorth(totalInBRL);
+      } catch (error) {
+        console.error('Erro ao calcular patrimônio:', error);
+        setTotalNetWorth(0);
+      }
+      setIsCalculatingNetWorth(false);
+    };
+    calculateNetWorth();
+  }, [accounts, isLoading]);
 
   const getAccountsByType = () => {
     const activeAccounts = accounts.filter(acc => acc.is_active !== false);
@@ -101,87 +106,45 @@ export default function Dashboard() {
     return groupedAccounts;
   };
 
-  const netWorth = calculateNetWorth();
   const groupedAccounts = getAccountsByType();
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-full mx-auto xl:max-w-screen-2xl">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <WelcomeCard />
-      </motion.div>
-      
-      {/* Grid para os dois gráficos principais */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="h-full" 
-        >
-          <ExpensesChart 
-            transactions={allTransactions}
-            tags={tags}
-            isLoading={isLoading}
-            accounts={accounts}
-          />
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="h-full"
-        >
-          <PatrimonyEvolutionChart
-            patrimonyData={patrimonyData}
-            isLoading={isLoading}
-          />
-        </motion.div>
-      </div>
+    <div className="v2-theme bg-background min-h-screen">
+      <div className="p-6 lg:p-10 space-y-8">
 
-      {/* Linha inferior: Patrimônio Líquido (esquerda) + Despesas Mensais (direita) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="h-full"
-        >
-          <NetWorthCard
-            accounts={accounts}
-            isLoading={isLoading}
-          />
+        {/* Page Header */}
+        <motion.div {...stagger} transition={{ duration: 0.4 }}>
+          <h2 className="font-headline-lg text-headline-lg text-green-600">Dashboard</h2>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="h-full"
-        >
-          <MonthlyExpensesChart
-            transactions={allTransactions}
-            isLoading={isLoading}
-            accounts={accounts}
-          />
+        {/* Welcome Card with Net Worth */}
+        <motion.div {...stagger} transition={{ duration: 0.4, delay: 0.05 }}>
+          <WelcomeCard netWorth={totalNetWorth} isLoading={isCalculatingNetWorth} />
         </motion.div>
-      </div>
 
-      {/* Grid para Lista de Contas */}
-      <div className="grid grid-cols-1 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-        >
-          <AccountsList
-            groupedAccounts={groupedAccounts}
-            isLoading={isLoading}
-          />
-        </motion.div>
+        {/* Main Grid: Charts (left) + Accounts (right) */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          {/* Left Column: Charts */}
+          <div className="xl:col-span-8 space-y-6">
+            <motion.div {...stagger} transition={{ duration: 0.4, delay: 0.1 }}>
+              <PatrimonyEvolutionChart patrimonyData={patrimonyData} isLoading={isLoading} />
+            </motion.div>
+            <motion.div {...stagger} transition={{ duration: 0.4, delay: 0.15 }}
+              className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+            >
+              <ExpensesChart transactions={allTransactions} tags={tags} isLoading={isLoading} accounts={accounts} />
+              <MonthlyExpensesChart transactions={allTransactions} isLoading={isLoading} accounts={accounts} />
+            </motion.div>
+          </div>
+
+          {/* Right Column: Accounts */}
+          <motion.div {...stagger} transition={{ duration: 0.4, delay: 0.2 }}
+            className="xl:col-span-4"
+          >
+            <AccountsList groupedAccounts={groupedAccounts} isLoading={isLoading} />
+          </motion.div>
+        </div>
+
       </div>
     </div>
   );

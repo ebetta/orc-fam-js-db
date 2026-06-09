@@ -64,24 +64,24 @@ const AccountGroup = ({ config, accounts, totalBalanceInBRL, hasMultipleCurrenci
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className={`p-4 rounded-xl border ${config.borderColor} ${config.bgColor}`}
+      className="p-4 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm"
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg bg-white ${config.color}`}>
+          <div className={`p-2 rounded-lg bg-secondary/10 text-secondary`}>
             <config.icon className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="font-semibold text-gray-900">{config.label}</h4>
-            <p className="text-sm text-gray-600">{accounts.length} conta{accounts.length !== 1 ? 's' : ''}</p>
+            <h4 className="font-headline-sm text-headline-sm">{config.label}</h4>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">{accounts.length} conta{accounts.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
         <div className="text-right">
           {totalBalanceInBRL !== null ? (
-            <div className={`font-bold text-gray-900 ${totalBalanceInBRL < 0 ? 'text-red-600' : ''}`}>
+            <div className={`font-bold font-headline-sm text-headline-sm ${totalBalanceInBRL < 0 ? 'text-error' : 'text-on-background'}`}>
               {formatCurrencyWithSymbol(totalBalanceInBRL, 'BRL')}
               {hasMultipleCurrencies && (
-                <p className="text-xs font-normal text-gray-500">(convertido)</p>
+                <p className="font-body-sm text-body-sm font-normal text-on-surface-variant">(convertido)</p>
               )}
             </div>
           ) : (
@@ -97,23 +97,23 @@ const AccountGroup = ({ config, accounts, totalBalanceInBRL, hasMultipleCurrenci
           return (
             <div 
               key={account.id} 
-              className="flex items-center justify-between text-sm cursor-pointer hover:bg-white hover:bg-opacity-50 rounded-lg p-2 -m-2 transition-colors duration-200"
+              className="flex items-center justify-between font-body-sm text-body-sm cursor-pointer hover:bg-surface-container-low rounded-lg p-2 -m-2 transition-colors duration-200"
               onClick={() => handleAccountClick(account.id)}
               title={`Clique para ver transações de ${account.name}`}
             >
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full" />
-                <span className="text-gray-700 truncate">{account.name}</span>
+                <div className="w-2 h-2 bg-outline-variant rounded-full" />
+                <span className="text-on-background truncate font-semibold">{account.name}</span>
                 {account.bank && (
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-xs border-outline-variant text-on-surface-variant font-label-md">
                     {account.bank}
                   </Badge>
                 )}
               </div>
-              <span className={`font-medium text-gray-900 ${brlBalance < 0 ? 'text-red-600' : ''}`}>
+              <span className={`font-semibold text-on-background ${brlBalance < 0 ? 'text-error' : ''}`}>
                 {formatCurrencyWithSymbol(brlBalance, 'BRL')}
                 {originalCurrency !== 'BRL' && (
-                  <span className="text-xs text-gray-500 ml-1">
+                  <span className="font-body-sm text-body-sm text-on-surface-variant ml-1">
                     ({formatCurrencyWithSymbol(account.current_balance || account.initial_balance || 0, originalCurrency)})
                   </span>
                 )}
@@ -216,15 +216,15 @@ export default function AccountsList({ groupedAccounts, isLoading }) {
   const showSkeleton = isLoading || isProcessing;
 
   return (
-    <Card className="shadow-lg border-0">
-      <CardHeader className="border-b bg-gray-50">
+    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm rounded-2xl">
+      <CardHeader className="border-b border-outline-variant bg-surface-container-low">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-blue-600" />
+          <CardTitle className="font-headline-sm text-headline-sm flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-secondary" />
             Suas Contas
           </CardTitle>
           <Link to={createPageUrl("Accounts")}>
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button variant="outline" size="sm" className="gap-2 border-outline-variant text-on-surface-variant hover:bg-surface-container-high">
               Ver todas
               <ArrowRight className="w-4 h-4" />
             </Button>
@@ -275,7 +275,7 @@ export default function AccountsList({ groupedAccounts, isLoading }) {
                   Comece adicionando suas contas bancárias, cartões e investimentos
                 </p>
                 <Link to={createPageUrl("Accounts")}>
-                  <Button className="bg-green-600 hover:bg-green-700">
+                  <Button className="bg-secondary text-on-secondary hover:opacity-90 shadow-sm">
                     <Plus className="w-4 h-4 mr-2" />
                     Adicionar primeira conta
                   </Button>

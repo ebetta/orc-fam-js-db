@@ -256,11 +256,11 @@ export default function ExpensesChart({ transactions, tags, isLoading, accounts 
   };
 
   return (
-    <Card className="bg-card text-card-foreground shadow-lg border-0 h-full flex flex-col">
-      <CardHeader className="border-b bg-gray-50 py-3 flex flex-row items-center justify-between">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <ShoppingCart className="w-5 h-5 text-red-600" />
-          Despesas por Tags Pai
+    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm h-full flex flex-col rounded-2xl">
+      <CardHeader className="border-b border-outline-variant bg-surface-container-low py-3 flex flex-row items-center justify-between">
+        <CardTitle className="font-headline-sm text-headline-sm flex items-center gap-2">
+          <ShoppingCart className="w-5 h-5 text-error" />
+          Despesas por Categoria
         </CardTitle>
         <div className="flex gap-2">
           <Popover open={parentTagsFilterOpen} onOpenChange={setParentTagsFilterOpen}>

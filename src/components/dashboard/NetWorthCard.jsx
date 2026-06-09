@@ -78,20 +78,20 @@ export default function NetWorthCard({ accounts, isLoading, customNetWorth }) {
   };
 
   return (
-    <Card className="bg-white shadow-lg border-0 overflow-hidden h-full flex flex-col">
-      <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b py-3">
+    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm overflow-hidden h-full flex flex-col rounded-2xl">
+      <CardHeader className="bg-surface-container-low border-b border-outline-variant py-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
-              <div className="p-1.5 bg-blue-100 rounded-lg">
-                <Wallet className="w-4 h-4 text-blue-600" />
+            <CardTitle className="font-headline-sm text-headline-sm flex items-center gap-2">
+              <div className="p-1.5 bg-secondary/10 rounded-lg">
+                <Wallet className="w-4 h-4 text-secondary" />
               </div>
               Patrimônio Líquido
             </CardTitle>
-            <p className="text-gray-500 text-xs mt-0.5">Saldo total convertido para BRL</p>
+            <p className="text-on-surface-variant font-body-sm text-body-sm mt-0.5">Saldo total convertido para BRL</p>
           </div>
-          <div className="p-2 bg-blue-500 rounded-full">
-            <TrendingUp className="w-4 h-4 text-white" />
+          <div className="p-2 bg-secondary rounded-full">
+            <TrendingUp className="w-4 h-4 text-on-secondary" />
           </div>
         </div>
       </CardHeader>
@@ -117,23 +117,23 @@ export default function NetWorthCard({ accounts, isLoading, customNetWorth }) {
             transition={{ duration: 0.5 }}
           >
             <div
-              className={`text-3xl font-bold mb-2 cursor-pointer hover:text-blue-600 transition-colors duration-200 ${convertedNetWorth < 0 ? 'text-red-600' : 'text-gray-900'}`}
+              className={`text-3xl font-bold mb-2 cursor-pointer hover:text-secondary transition-colors duration-200 ${convertedNetWorth < 0 ? 'text-error' : 'text-on-background'}`}
               onClick={handleNetWorthClick}
               title="Clique para ver todas as transações"
             >
               {formatCurrency(convertedNetWorth)}
             </div>
-            <div className="flex items-center gap-4 text-gray-600">
+            <div className="flex items-center gap-4 text-on-surface-variant">
               <div className="flex items-center gap-2">
                 <PiggyBank className="w-4 h-4" />
-                <span className="text-sm">
+                <span className="font-body-sm text-body-sm">
                   {totalAccounts} conta{totalAccounts !== 1 ? 's' : ''} ativa{totalAccounts !== 1 ? 's' : ''}
                 </span>
               </div>
               {convertedNetWorth > 0 && (
-                <div className="flex items-center gap-1 text-green-600">
+                <div className="flex items-center gap-1 text-primary-v2">
                   <TrendingUp className="w-4 h-4" />
-                  <span className="text-sm font-medium">Patrimônio positivo</span>
+                  <span className="font-body-sm text-body-sm font-semibold">Patrimônio positivo</span>
                 </div>
               )}
             </div>
