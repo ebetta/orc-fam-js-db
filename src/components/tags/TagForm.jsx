@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { X, Save, Tag as TagIconForm, Palette, Smile, ChevronsUpDown, Check } from "lucide-react"; // Adicionado ChevronsUpDown, Check
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"; // Adicionado Popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"; // Adicionado Command
+import { getTagPath } from "@/utils";
 
 const tagTypes = [
   { value: "expense", label: "Despesa" },
@@ -56,9 +57,7 @@ export default function TagForm({ tag, allTags, onSave, onCancel }) {
     });
 
     const currentParentTag = allTags.find(t => t.id === currentParentTagId);
-    // Set parentTagSearchValue to the name of the current parent tag, or empty string if none.
-    // This pre-fills the search input if a parent tag is already selected when editing.
-    setParentTagSearchValue(currentParentTag ? currentParentTag.name : "");
+    setParentTagSearchValue(currentParentTag ? getTagPath(currentParentTag.id, allTags) : "");
 
   }, [tag, allTags]);
 
@@ -98,10 +97,14 @@ export default function TagForm({ tag, allTags, onSave, onCancel }) {
     });
   };
 
-  // Filter available parent tags: cannot be self, and filter by search value
+  // Filter available parent tags: cannot be self, and filter by search value (including path)
   const parentTagOptions = allTags
-    .filter(t => t.id !== tag?.id) // Cannot be its own parent
-    .filter(t => t.name.toLowerCase().includes(parentTagSearchValue.toLowerCase()));
+    .filter(t => t.id !== tag?.id)
+    .filter(t => {
+      const path = getTagPath(t.id, allTags);
+      return path.toLowerCase().includes(parentTagSearchValue.toLowerCase());
+    })
+    .map(t => ({ ...t, _displayPath: getTagPath(t.id, allTags) }));
   
   // Find the selected parent tag object for display in the combobox button
   const selectedParentTag = allTags.find(t => t.id === formData.parent_tag_id); // Updated field name
@@ -152,7 +155,7 @@ export default function TagForm({ tag, allTags, onSave, onCancel }) {
                     className="w-full justify-between h-12 font-normal"
                     id="parent_tag_id_combobox"
                   >
-                    {selectedParentTag ? selectedParentTag.name : "Nenhuma tag pai"}
+                    {selectedParentTag ? getTagPath(selectedParentTag.id, allTags) : "Nenhuma tag pai"}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -183,21 +186,20 @@ export default function TagForm({ tag, allTags, onSave, onCancel }) {
                         {parentTagOptions.map((option) => (
                           <CommandItem
                             key={option.id}
-                            value={option.name} // Value for CommandInput filter and onSelect
+                            value={option._displayPath}
                             onSelect={(currentValue) => {
-                              // Find the actual tag object by its name to get the ID
                               const actualSelectedTag = parentTagOptions.find(
-                                t => t.name.toLowerCase() === currentValue.toLowerCase()
+                                t => t._displayPath.toLowerCase() === currentValue.toLowerCase()
                               );
-                              handleInputChange("parent_tag_id", actualSelectedTag ? actualSelectedTag.id : null); // Updated field name
-                              setParentTagSearchValue(actualSelectedTag ? actualSelectedTag.name : ""); // Set search value to selected tag's name
-                              setParentTagPopoverOpen(false); // Close popover
+                              handleInputChange("parent_tag_id", actualSelectedTag ? actualSelectedTag.id : null);
+                              setParentTagSearchValue(actualSelectedTag ? actualSelectedTag._displayPath : "");
+                              setParentTagPopoverOpen(false);
                             }}
                           >
                             <Check
-                              className={`mr-2 h-4 w-4 ${formData.parent_tag_id === option.id ? "opacity-100" : "opacity-0"}`} // Updated field name
+                              className={`mr-2 h-4 w-4 ${formData.parent_tag_id === option.id ? "opacity-100" : "opacity-0"}`}
                             />
-                            {option.name}
+                            <span className="text-xs text-outline mr-1 font-mono">{option._displayPath}</span>
                           </CommandItem>
                         ))}
                       </CommandGroup>

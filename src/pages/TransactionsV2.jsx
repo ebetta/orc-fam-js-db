@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { startOfDay, endOfDay, parseISO, format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, getTagPath, getChildTagIds } from "@/utils";
 
 import { convertCurrency, formatCurrencyWithSymbol } from "../components/utils/CurrencyConverter";
 
@@ -534,7 +534,7 @@ function FiltersBar({ filters, onFiltersChange, accounts, tags, onClearFilters, 
         >
           <option value="all">Tag: Todas</option>
           {tags.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
+            <option key={t.id} value={t.id}>{getTagPath(t.id, tags)}</option>
           ))}
         </select>
 
@@ -652,8 +652,9 @@ function TransactionRow({ transaction, accounts, tags, onEdit, onDelete, index }
               color: tag.color || "#4648d4",
               border: `1px solid ${tag.color ? `${tag.color}44` : "#bbcabf"}`,
             }}
+            title={getTagPath(tag.id, tags)}
           >
-            {tag.name}
+            {getTagPath(tag.id, tags)}
           </span>
         ) : (
           <span className="text-xs text-gray-300 italic">—</span>
@@ -903,6 +904,13 @@ export default function TransactionsV2Page() {
   const handleClearFilters = () => setFilters({ type: "all", accountId: "all", tagId: "all", period: { from: null, to: null }, searchTerm: "" });
 
   // Filtering & pagination
+  const relevantTagIds = useMemo(() => {
+    if (filters.tagId === "all" || !tags.length) return null;
+    const ids = getChildTagIds(filters.tagId, tags);
+    ids.add(filters.tagId);
+    return ids;
+  }, [filters.tagId, tags]);
+
   const filteredTransactions = useMemo(() => {
     return transactions.filter((transaction) => {
       const typeMatch = filters.type === "all" || transaction.transaction_type === filters.type;
@@ -910,7 +918,7 @@ export default function TransactionsV2Page() {
         filters.accountId === "all" ||
         transaction.account_id === filters.accountId ||
         (transaction.transaction_type === "transfer" && transaction.destination_account_id === filters.accountId);
-      const tagMatch = filters.tagId === "all" || transaction.tag_id === filters.tagId;
+      const tagMatch = filters.tagId === "all" || (relevantTagIds && relevantTagIds.has(transaction.tag_id));
       const transactionDate = parseISO(transaction.transaction_date);
       let periodMatch = true;
       if (filters.period.from) periodMatch = periodMatch && transactionDate >= startOfDay(parseISO(filters.period.from));
@@ -927,7 +935,7 @@ export default function TransactionsV2Page() {
       if (dateA !== dateB) return dateB - dateA;
       return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
     });
-  }, [transactions, filters, accounts, tags]);
+  }, [transactions, filters, accounts, tags, relevantTagIds]);
 
   const totalItems = filteredTransactions.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);

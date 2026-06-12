@@ -10,8 +10,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { X, Save, TrendingUp, CalendarIcon as CalendarIconLucide, Check, ChevronsUpDown } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { formatCurrencyWithSymbol } from "../utils/CurrencyConverter"; // Added import
+import { formatCurrencyWithSymbol } from "../utils/CurrencyConverter";
 import { format, parseISO } from "date-fns";
+import { getTagPath, isLeafTag } from "@/utils";
 
 const transactionTypes = [
   { value: "income", label: "Receita" },
@@ -48,15 +49,13 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
       notes: transaction?.notes || ""
     });
 
-    // Se estiver editando uma transação com tag, e a tag existir na lista `tags`,
-    // definir o `tagSearchValue` para o nome da tag para exibição correta no combobox.
-    const currentTagId = transaction?.tag_id; // Use the direct tag_id
+    const currentTagId = transaction?.tag_id;
     if (currentTagId) {
       const currentTagObject = tags.find(t => t.id === currentTagId);
       if (currentTagObject) {
-        setTagSearchValue(currentTagObject.name);
+        setTagSearchValue(getTagPath(currentTagObject.id, tags));
       } else {
-        setTagSearchValue(""); // Tag não encontrada ou nula
+        setTagSearchValue("");
       }
     } else {
       setTagSearchValue("");
@@ -112,11 +111,15 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
   const selectedAccount = accounts.find(acc => acc.id === formData.account_id);
   const selectedAccountCurrency = selectedAccount?.currency || 'BRL';
 
-  const filteredTags = tags.filter(tag =>
-    tag.name.toLowerCase().includes(tagSearchValue.toLowerCase())
+  const leafTags = tags.filter(tag => isLeafTag(tag, tags));
+  const leafTagsWithPath = leafTags.map(tag => ({ ...tag, _displayPath: getTagPath(tag.id, tags) }));
+
+  const filteredTags = leafTagsWithPath.filter(tag =>
+    tag._displayPath.toLowerCase().includes(tagSearchValue.toLowerCase())
   );
 
-  const selectedTag = tags.find(t => t.id === formData.tag_id);
+  const selectedTag = leafTagsWithPath.find(t => t.id === formData.tag_id)
+    || tags.find(t => t.id === formData.tag_id);
 
   return (
     <Card className="shadow-xl border-0 max-h-[90vh] flex flex-col">
@@ -288,7 +291,7 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
                   aria-expanded={tagPopoverOpen}
                   className="w-full justify-between h-12 font-normal"
                 >
-                  {selectedTag ? selectedTag.name : "Selecione uma tag..."}
+                  {selectedTag ? selectedTag._displayPath : "Selecione uma tag..."}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -319,18 +322,18 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
                       {filteredTags.map((tag) => (
                         <CommandItem
                           key={tag.id}
-                          value={tag.name} // O valor do CommandItem é usado para a busca interna do Command
-                          onSelect={(currentValue) => { // currentValue é o tag.name
-                            const selected = tags.find(t => t.name.toLowerCase() === currentValue.toLowerCase());
+                          value={tag._displayPath}
+                          onSelect={(currentValue) => {
+                            const selected = leafTagsWithPath.find(t => t._displayPath.toLowerCase() === currentValue.toLowerCase());
                             handleInputChange("tag_id", selected ? selected.id : null);
-                            setTagSearchValue(selected ? selected.name : ""); // Atualiza texto de busca para o nome completo
+                            setTagSearchValue(selected ? selected._displayPath : "");
                             setTagPopoverOpen(false);
                           }}
                         >
                           <Check
                             className={`mr-2 h-4 w-4 ${formData.tag_id === tag.id ? "opacity-100" : "opacity-0"}`}
                           />
-                          {tag.name}
+                          <span className="text-xs text-outline mr-1 font-mono">{tag._displayPath}</span>
                         </CommandItem>
                       ))}
                     </CommandGroup>

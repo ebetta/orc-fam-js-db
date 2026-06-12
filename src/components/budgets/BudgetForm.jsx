@@ -8,8 +8,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Switch } from "@/components/ui/switch";
 import { X, Save, Target as TargetIcon, CalendarIcon as CalendarIconLucide, Check, ChevronsUpDown } from "lucide-react"; // Adicionado Check, ChevronsUpDown
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"; // Adicionado Command components
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { getTagPath, isLeafTag } from "@/utils";
 
 const budgetPeriods = [
   { value: "monthly", label: "Mensal" },
@@ -55,7 +56,7 @@ export default function BudgetForm({ budget, tags, onSave, onCancel }) {
     setDateRange({ from: startDate, to: endDate });
 
     const currentTag = tags.find(t => t.id === initialTagId);
-    setTagSearchValue(currentTag ? currentTag.name : "");
+    setTagSearchValue(currentTag ? getTagPath(currentTag.id, tags) : "");
 
   }, [budget, tags]);
 
@@ -104,10 +105,15 @@ export default function BudgetForm({ budget, tags, onSave, onCancel }) {
     if (range?.to) handleInputChange("end_date", format(range.to, "yyyy-MM-dd"));
   };
 
-  const filteredTags = tags.filter(tag =>
-    tag.name.toLowerCase().includes(tagSearchValue.toLowerCase())
+  const leafTags = tags.filter(tag => isLeafTag(tag, tags));
+  const leafTagsWithPath = leafTags.map(tag => ({ ...tag, _displayPath: getTagPath(tag.id, tags) }));
+
+  const filteredTags = leafTagsWithPath.filter(tag =>
+    tag._displayPath.toLowerCase().includes(tagSearchValue.toLowerCase())
   );
-  const selectedTag = tags.find(t => t.id === formData.tag_id); // Alterado aqui
+
+  const selectedTag = leafTagsWithPath.find(t => t.id === formData.tag_id)
+    || tags.find(t => t.id === formData.tag_id);
 
   return (
     <Card className="shadow-2xl border-0 max-h-[90vh] flex flex-col rounded-2xl bg-white">
@@ -160,7 +166,7 @@ export default function BudgetForm({ budget, tags, onSave, onCancel }) {
                     className="w-full justify-between h-12 font-normal border-gray-200 hover:border-orange-500 hover:bg-orange-50 rounded-xl transition-all shadow-sm"
                     id="tag_id_combobox"
                   >
-                    {selectedTag ? selectedTag.name : "Selecione uma tag..."}
+                    {selectedTag ? selectedTag._displayPath : "Selecione uma tag..."}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -177,18 +183,18 @@ export default function BudgetForm({ budget, tags, onSave, onCancel }) {
                         {filteredTags.map((tag) => (
                           <CommandItem
                             key={tag.id}
-                            value={tag.name}
+                            value={tag._displayPath}
                             onSelect={(currentValue) => {
-                              const currentSelectedTag = tags.find(t => t.name.toLowerCase() === currentValue.toLowerCase());
-                              handleInputChange("tag_id", currentSelectedTag ? currentSelectedTag.id : ""); // Alterado aqui
-                              setTagSearchValue(currentSelectedTag ? currentSelectedTag.name : "");
+                              const currentSelectedTag = leafTagsWithPath.find(t => t._displayPath.toLowerCase() === currentValue.toLowerCase());
+                              handleInputChange("tag_id", currentSelectedTag ? currentSelectedTag.id : "");
+                              setTagSearchValue(currentSelectedTag ? currentSelectedTag._displayPath : "");
                               setTagPopoverOpen(false);
                             }}
                           >
                             <Check
-                              className={`mr-2 h-4 w-4 ${formData.tag_id === tag.id ? "opacity-100" : "opacity-0"}`} // Alterado aqui
+                              className={`mr-2 h-4 w-4 ${formData.tag_id === tag.id ? "opacity-100" : "opacity-0"}`}
                             />
-                            {tag.name}
+                            <span className="text-xs text-outline mr-1 font-mono">{tag._displayPath}</span>
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -198,6 +204,17 @@ export default function BudgetForm({ budget, tags, onSave, onCancel }) {
               </Popover>
             </div>
           </div>
+
+          {selectedTag && selectedTag.parent_tag_id && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700">
+                <span className="font-semibold">Categoria:</span> {getTagPath(selectedTag.parent_tag_id, tags)}
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                O orçamento total da categoria será a soma dos orçamentos de todas as subcategorias.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-6">
             <div className="space-y-2">
