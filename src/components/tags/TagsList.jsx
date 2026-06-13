@@ -73,7 +73,7 @@ const TagRow = ({ tag, level = 0, onEditTag, onDeleteTag, allTags, isExpanded, o
   return (
     <>
       <TableRow 
-        className={`hover:bg-gray-50 cursor-pointer ${tag.is_active === false ? 'opacity-60' : ''}`}
+        className={`hover:bg-surface-container-low cursor-pointer transition-colors ${tag.is_active === false ? 'opacity-60' : ''}`}
         onClick={handleRowClick}
       >
         <TableCell style={{ paddingLeft: `${level * 24 + 16}px` }}>
@@ -97,16 +97,16 @@ const TagRow = ({ tag, level = 0, onEditTag, onDeleteTag, allTags, isExpanded, o
             >
               <IconComponent className="w-full h-full text-white" />
             </div>
-            <span className="font-medium text-gray-900">{tag.name}</span>
+            <span className="font-medium text-on-background">{tag.name}</span>
             {tag.is_active === false && (
               <Badge variant="outline" className="text-xs">Inativa</Badge>
             )}
           </div>
         </TableCell>
-        <TableCell className="text-sm text-gray-600">
-          {parentTag ? parentTag.name : <span className="text-gray-400">-</span>}
+        <TableCell className="font-body-sm text-body-sm text-on-surface-variant">
+          {parentTag ? parentTag.name : <span className="text-outline/60">-</span>}
         </TableCell>
-        <TableCell className="text-sm text-gray-600 capitalize">
+        <TableCell className="font-body-sm text-body-sm text-on-surface-variant capitalize">
           {tag.tag_type === "both" ? "Ambos" : tag.tag_type === "expense" ? "Despesa" : "Receita"}
         </TableCell>
         <TableCell className="text-right">
@@ -162,21 +162,21 @@ export default function TagsList({ tags, isLoading, onEditTag, onDeleteTag, expa
 
   if (isLoading) {
     return (
-      <Card className="shadow-lg border-0">
-        <CardHeader className="border-b bg-gray-50">
-          <CardTitle className="flex items-center gap-2">
-            <TagIconDefault className="w-5 h-5 text-purple-600" />
-            Lista de Tags
+      <Card className="bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-sm overflow-hidden">
+        <CardHeader className="bg-surface-container-low border-b border-outline-variant">
+          <CardTitle className="flex items-center gap-2 text-headline-sm font-headline-sm text-on-background">
+            <TagIconDefault className="w-5 h-5 text-secondary" />
+            Lista de Categorias
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Tag Pai</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead className="text-label-md font-label-md text-on-surface-variant">Nome</TableHead>
+                <TableHead className="text-label-md font-label-md text-on-surface-variant">Categoria Pai</TableHead>
+                <TableHead className="text-label-md font-label-md text-on-surface-variant">Tipo</TableHead>
+                <TableHead className="text-right text-label-md font-label-md text-on-surface-variant">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -200,13 +200,13 @@ export default function TagsList({ tags, isLoading, onEditTag, onDeleteTag, expa
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="text-center py-20 bg-white shadow-lg rounded-xl border"
+        className="text-center py-20 bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-sm"
       >
-        <TagIconDefault className="w-16 h-16 text-gray-300 mx-auto mb-6" />
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">
+        <TagIconDefault className="w-16 h-16 text-outline/40 mx-auto mb-6" />
+        <h3 className="font-headline-sm text-headline-sm text-on-background mb-2">
           Nenhuma tag cadastrada
         </h3>
-        <p className="text-gray-600 text-lg">
+        <p className="text-on-surface-variant font-body-md">
           Comece criando sua primeira tag para organizar suas finanças.
         </p>
       </motion.div>
@@ -214,12 +214,12 @@ export default function TagsList({ tags, isLoading, onEditTag, onDeleteTag, expa
   }
 
   return (
-    <Card className="shadow-lg border-0">
-      <CardHeader className="border-b bg-gray-50">
-        <CardTitle className="flex items-center gap-2">
-          <TagIconDefault className="w-5 h-5 text-purple-600" />
-          Lista de Tags
-          <span className="text-sm font-normal text-gray-500 ml-2">
+    <Card className="bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-sm overflow-hidden">
+      <CardHeader className="bg-surface-container-low border-b border-outline-variant">
+        <CardTitle className="flex items-center gap-2 text-headline-sm font-headline-sm text-on-background">
+          <TagIconDefault className="w-5 h-5 text-secondary" />
+          Lista de Categorias
+          <span className="text-sm font-normal text-on-surface-variant ml-2">
             (Clique na linha para editar)
           </span>
         </CardTitle>
@@ -228,10 +228,10 @@ export default function TagsList({ tags, isLoading, onEditTag, onDeleteTag, expa
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="pl-4">Nome</TableHead>
-              <TableHead>Tag Pai</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead className="text-right pr-4">Ações</TableHead>
+              <TableHead className="pl-4 text-label-md font-label-md text-on-surface-variant">Nome</TableHead>
+              <TableHead className="text-label-md font-label-md text-on-surface-variant">Categoria Pai</TableHead>
+              <TableHead className="text-label-md font-label-md text-on-surface-variant">Tipo</TableHead>
+              <TableHead className="text-right pr-4 text-label-md font-label-md text-on-surface-variant">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

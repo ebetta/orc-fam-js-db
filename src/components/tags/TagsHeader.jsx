@@ -48,7 +48,7 @@ export default function TagsHeader({ onAddTag, tagsCount, onExpandAll, onCollaps
               className="bg-white text-purple-700 hover:bg-purple-50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
             >
               <Plus className="w-5 h-5 mr-2" />
-              Nova Tag
+              Nova Categoria
             </Button>
           </div>
         </div>

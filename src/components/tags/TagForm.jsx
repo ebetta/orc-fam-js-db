@@ -6,9 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { X, Save, Tag as TagIconForm, Palette, Smile, ChevronsUpDown, Check } from "lucide-react"; // Adicionado ChevronsUpDown, Check
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"; // Adicionado Popover
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"; // Adicionado Command
+import { X, Save, Tag as TagIconForm, Palette, Smile, ChevronsUpDown, Check } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { getTagPath } from "@/utils";
 
 const tagTypes = [
@@ -110,14 +110,14 @@ export default function TagForm({ tag, allTags, onSave, onCancel }) {
   const selectedParentTag = allTags.find(t => t.id === formData.parent_tag_id); // Updated field name
 
   return (
-    <Card className="shadow-xl border-0">
-      <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100 border-b">
+    <Card className="bg-surface-container-lowest border border-outline-variant shadow-lg">
+      <CardHeader className="bg-gradient-to-r from-indigo-50 to-indigo-100 border-b border-outline-variant">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <TagIconForm className="w-6 h-6 text-purple-600" /> {/* Usar TagIconForm aqui */}
+            <div className="p-2 bg-indigo-100 rounded-lg">
+              <TagIconForm className="w-6 h-6 text-secondary" /> {/* Usar TagIconForm aqui */}
             </div>
-            {tag ? "Editar Tag" : "Nova Tag"}
+            {tag ? "Editar Categoria" : "Nova Categoria"}
           </CardTitle>
           <Button variant="ghost" size="icon" onClick={onCancel}>
             <X className="w-5 h-5" />
@@ -130,7 +130,7 @@ export default function TagForm({ tag, allTags, onSave, onCancel }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="name" className="text-sm font-medium">
-                Nome da Tag *
+                Nome da Categoria *
               </Label>
               <Input
                 id="name"
@@ -144,7 +144,7 @@ export default function TagForm({ tag, allTags, onSave, onCancel }) {
 
             <div className="space-y-2">
               <Label htmlFor="parent_tag_id_combobox" className="text-sm font-medium">
-                Tag Pai (Opcional)
+                Categoria Pai (Opcional)
               </Label>
               <Popover open={parentTagPopoverOpen} onOpenChange={setParentTagPopoverOpen}>
                 <PopoverTrigger asChild>
@@ -243,7 +243,7 @@ export default function TagForm({ tag, allTags, onSave, onCancel }) {
                 className="h-12"
               />
                <p className="text-xs text-gray-500">
-                Use nomes de ícones da <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">Lucide Icons</a>.
+                Use nomes de ícones da <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">Lucide Icons</a>.
               </p>
             </div>
 
@@ -272,7 +272,7 @@ export default function TagForm({ tag, allTags, onSave, onCancel }) {
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
             <div>
               <Label htmlFor="is_active" className="text-sm font-medium">
-                Tag Ativa
+                Categoria Ativa
               </Label>
               <p className="text-xs text-gray-600 mt-1">
                 Tags inativas não aparecerão nas seleções de transação.
@@ -298,7 +298,7 @@ export default function TagForm({ tag, allTags, onSave, onCancel }) {
             <Button
               type="submit"
               disabled={isLoading}
-              className="h-12 px-8 bg-purple-600 hover:bg-purple-700"
+              className="h-12 px-8 bg-secondary hover:bg-secondary/90"
             >
               {isLoading ? (
                 <>
