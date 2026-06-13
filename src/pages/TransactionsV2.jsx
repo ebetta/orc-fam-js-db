@@ -9,6 +9,7 @@ import { ptBR } from "date-fns/locale";
 import { createPageUrl, getTagPath, getChildTagIds } from "@/utils";
 
 import { convertCurrency, formatCurrencyWithSymbol } from "../components/utils/CurrencyConverter";
+import PeriodSummaryV2 from "../components/transactions/PeriodSummaryV2";
 
 import TransactionForm from "../components/transactions/TransactionForm";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1099,6 +1100,12 @@ export default function TransactionsV2Page() {
             />
           </motion.div>
         )}
+
+        <PeriodSummaryV2
+          transactions={filteredTransactions}
+          filters={filters}
+          accounts={accounts}
+        />
 
         {/* ── Filters Bar ── */}
         <motion.div

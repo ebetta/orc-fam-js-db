@@ -168,7 +168,7 @@ export default function BudgetsList({
   }
 
   return (
-    <Accordion type="multiple" className="w-full space-y-4">
+    <Accordion type="multiple" className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       {groupedBudgets.map((group, groupIndex) => {
         const IconComponent = getDynamicIcon(group.parentTag.icon);
 
@@ -225,7 +225,8 @@ export default function BudgetsList({
               </div>
             </AccordionTrigger>
             <AccordionContent className="border-t border-outline-variant bg-surface-container-low/50">
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow className="border-b border-outline-variant">
                     <TableHead className="pl-6 font-bold font-label-md text-label-md text-on-surface uppercase tracking-wider">Tag Específica</TableHead>
@@ -301,7 +302,8 @@ export default function BudgetsList({
                       );
                     })}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             </AccordionContent>
           </AccordionItem>
         );
