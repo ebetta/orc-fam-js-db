@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { api, auth } from "@/lib/api";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import {
   startOfMonth, endOfMonth, subMonths, parseISO, isWithinInterval,
@@ -11,7 +11,7 @@ import {
 } from "date-fns";
 
 
-import BudgetsHeader from "../components/budgets/BudgetsHeader";
+import { BudgetsPageHeader, BudgetsHeroCard, BudgetsFiltersBar } from "../components/budgets/BudgetsHeader";
 import BudgetForm from "../components/budgets/BudgetForm";
 import BudgetsList from "../components/budgets/BudgetsList";
 
@@ -329,13 +329,11 @@ export default function BudgetsPage() {
       } else {
         // spent_amount is not a field in the budgets table, it's calculated
         const budgetPayload = { ...dataToSave, user_id: user.id };
-        // console.log("Payload para criar orçamento:", JSON.stringify(budgetPayload, null, 2)); // Log removido
 
         try {
           const { error } = await api.post('budgets', budgetPayload);
 
           if (error) {
-            // console.error("Erro detalhado do Supabase ao criar orçamento:", JSON.stringify(error, null, 2)); // Log removido
             throw error;
           }
           toast({
@@ -344,7 +342,6 @@ export default function BudgetsPage() {
             className: "bg-green-100 text-green-800 border-green-300",
           });
         } catch (e) {
-          // console.error("Exceção ao tentar criar orçamento:", e); // Log pode ser mantido ou removido dependendo da preferência
           throw e;
         }
       }
@@ -394,56 +391,75 @@ export default function BudgetsPage() {
   };
 
   return (
-    <div className="p-6 space-y-8 max-w-7xl mx-auto">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <BudgetsHeader
+    <div className="v2-theme font-body-md text-body-md text-on-background bg-background min-h-screen">
+      <div className="p-6 lg:p-10 space-y-8">
+
+        {/* ── Page Header ── */}
+        <BudgetsPageHeader
           onAddBudget={() => { setEditingBudget(null); setShowForm(true); }}
-          tags={tags} // tags filtradas para despesa/ambos e ativas
+        />
+
+        {/* ── Hero Card ── */}
+        <BudgetsHeroCard
+          summaryTotals={summaryTotals}
+          isLoading={isLoading}
+        />
+
+        {/* ── Filters Bar ── */}
+        <BudgetsFiltersBar
           filters={filters}
           onFiltersChange={setFilters}
-          budgetsCount={budgets.length} // Contagem de orçamentos ativos individuais
-          summaryTotals={summaryTotals} // Passar os totais para o header
+          tags={tags}
+          budgetsCount={budgets.length}
         />
-      </motion.div>
 
-      {showForm && (
+        {/* ── Budget Form Modal ── */}
+        <AnimatePresence>
+          {showForm && (
+            <motion.div
+              key="modal-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex justify-center items-center p-4 overflow-auto"
+              onClick={handleCancelForm}
+            >
+              <motion.div
+                key="modal-content"
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                transition={{ duration: 0.25 }}
+                onClick={e => e.stopPropagation()}
+                className="w-full max-w-2xl"
+              >
+                <BudgetForm
+                  budget={editingBudget}
+                  tags={tags}
+                  onSave={handleFormSubmit}
+                  onCancel={handleCancelForm}
+                />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Budgets List ── */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-40 flex justify-center items-center p-4 overflow-auto"
-          onClick={handleCancelForm}
+          transition={{ duration: 0.4, delay: 0.15 }}
         >
-          <div onClick={e => e.stopPropagation()} className="w-full max-w-2xl">
-            <BudgetForm
-              budget={editingBudget}
-              tags={tags} // Passa as mesmas tags filtradas para o formulário
-              onSave={handleFormSubmit}
-              onCancel={handleCancelForm}
-            />
-          </div>
+          <BudgetsList
+            groupedBudgets={groupedBudgetsForAccordion}
+            isLoading={isLoading}
+            onEditBudget={handleEditBudget}
+            onDeleteBudget={handleDeleteBudget}
+            currentPeriodFilter={filters.period}
+          />
         </motion.div>
-      )}
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-      >
-
-
-        <BudgetsList
-          groupedBudgets={groupedBudgetsForAccordion}
-          isLoading={isLoading}
-          onEditBudget={handleEditBudget}
-          onDeleteBudget={handleDeleteBudget}
-          currentPeriodFilter={filters.period} // Passar o filtro de período atual
-        />
-      </motion.div>
+      </div>
     </div>
   );
 }

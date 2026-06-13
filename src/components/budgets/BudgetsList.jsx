@@ -1,5 +1,6 @@
 
 
+
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -128,7 +129,7 @@ export default function BudgetsList({
       }
     }
 
-    const url = `${createPageUrl('Transactions')}?tagId=${tagId}${periodParams}`;
+    const url = `${createPageUrl('TransactionsV2')}?tagId=${tagId}${periodParams}`;
     navigate(url);
   };
 
@@ -136,7 +137,7 @@ export default function BudgetsList({
     return (
       <div className="space-y-4">
         {[1, 2].map(i => (
-          <div key={i} className="bg-white p-4 rounded-lg shadow">
+          <div key={i} className="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant shadow-sm">
             <Skeleton className="h-8 w-3/4 mb-3" />
             <Skeleton className="h-6 w-full mb-1" />
             <Skeleton className="h-6 w-5/6" />
@@ -151,13 +152,15 @@ export default function BudgetsList({
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="text-center py-20 bg-white shadow-lg rounded-xl border"
+        className="text-center py-20 bg-surface-container-lowest shadow-sm rounded-2xl border border-outline-variant"
       >
-        <Target className="w-16 h-16 text-gray-300 mx-auto mb-6" />
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">
+        <div className="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center mx-auto mb-6">
+          <Target className="w-8 h-8 text-secondary/60" />
+        </div>
+        <h3 className="font-headline-sm text-headline-sm text-on-background mb-2">
           Nenhum orçamento para exibir
         </h3>
-        <p className="text-gray-600 text-lg">
+        <p className="font-body-sm text-body-sm text-on-surface-variant">
           Crie orçamentos para começar a planejar seus gastos por categoria.
         </p>
       </motion.div>
@@ -170,35 +173,44 @@ export default function BudgetsList({
         const IconComponent = getDynamicIcon(group.parentTag.icon);
 
         return (
-          <AccordionItem value={`group-${group.parentTag.id || groupIndex}`} key={group.parentTag.id || groupIndex} className="bg-white shadow-lg rounded-xl border overflow-hidden">
-            <AccordionTrigger className="p-6 hover:bg-gray-50 transition-colors">
+          <AccordionItem
+            value={`group-${group.parentTag.id || groupIndex}`}
+            key={group.parentTag.id || groupIndex}
+            className="bg-surface-container-lowest shadow-sm rounded-2xl border border-outline-variant overflow-hidden"
+          >
+            <AccordionTrigger className="p-6 hover:bg-surface-container-low transition-colors">
               <div className="flex-1 mr-4">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between w-full gap-4">
                   <div className="flex items-center gap-3 flex-1">
                     <div
-                      className="w-10 h-10 rounded-md flex items-center justify-center shrink-0 p-2 border border-gray-100 shadow-sm"
+                      className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 p-2 shadow-sm"
                       style={{ backgroundColor: group.parentTag.color || '#A1A1AA' }}
                     >
                       <IconComponent className="w-full h-full text-white" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-800 text-left">{group.parentTag.name}</h3>
-                    <Badge variant="outline">{group.budgets.length} orçamento{group.budgets.length !== 1 ? 's' : ''}</Badge>
+                    <h3 className="font-headline-sm text-headline-sm text-on-background text-left">{group.parentTag.name}</h3>
+                    <Badge
+                      variant="outline"
+                      className="border-outline-variant text-on-surface-variant font-label-md text-label-md"
+                    >
+                      {group.budgets.length} orçamento{group.budgets.length !== 1 ? 's' : ''}
+                    </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 text-sm w-full md:w-auto mt-3 md:mt-0">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 w-full md:w-auto mt-3 md:mt-0">
                     <div className="text-left md:text-right">
-                      <span className="text-gray-500 block">Orçado</span>
-                      <span className="font-medium text-gray-800">{formatCurrency(group.groupTotalOrcado)}</span>
+                      <span className="font-label-md text-label-md text-on-surface-variant uppercase block">Orçado</span>
+                      <span className="font-bold font-body-md text-body-md text-on-background">{formatCurrency(group.groupTotalOrcado)}</span>
                     </div>
                     <div className="text-left md:text-right">
-                      <span className="text-gray-500 block">Gasto</span>
-                      <span className="font-medium text-gray-800">
+                      <span className="font-label-md text-label-md text-on-surface-variant uppercase block">Gasto</span>
+                      <span className="font-bold font-body-md text-body-md text-on-background">
                         {formatCurrency(group.groupTotalGasto)}
                       </span>
                     </div>
                     <div className="text-left md:text-right col-span-2 md:col-span-1">
-                      <span className="text-gray-500 block">Disponível</span>
-                      <span className={`font-medium ${group.groupTotalDisponivel < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <span className="font-label-md text-label-md text-on-surface-variant uppercase block">Disponível</span>
+                      <span className={`font-bold font-body-md text-body-md ${group.groupTotalDisponivel < 0 ? 'text-[#ba1a1a]' : 'text-primary-v2'}`}>
                         {formatCurrency(group.groupTotalDisponivel)}
                       </span>
                     </div>
@@ -212,16 +224,16 @@ export default function BudgetsList({
                 </div>
               </div>
             </AccordionTrigger>
-            <AccordionContent className="border-t bg-gray-50/50">
+            <AccordionContent className="border-t border-outline-variant bg-surface-container-low/50">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-6">Tag Específica</TableHead>
-                    <TableHead className="text-right">Orçado</TableHead>
-                    <TableHead className="text-right">Gasto</TableHead>
-                    <TableHead className="text-right">Disponível</TableHead>
-                    <TableHead className="w-[150px]">Progresso</TableHead>
-                    <TableHead className="text-right pr-6 w-[80px]">Ações</TableHead>
+                  <TableRow className="border-b border-outline-variant">
+                    <TableHead className="pl-6 font-bold font-label-md text-label-md text-on-surface uppercase tracking-wider">Tag Específica</TableHead>
+                    <TableHead className="text-right font-bold font-label-md text-label-md text-on-surface uppercase tracking-wider">Orçado</TableHead>
+                    <TableHead className="text-right font-bold font-label-md text-label-md text-on-surface uppercase tracking-wider">Gasto</TableHead>
+                    <TableHead className="text-right font-bold font-label-md text-label-md text-on-surface uppercase tracking-wider">Disponível</TableHead>
+                    <TableHead className="w-[150px] font-bold font-label-md text-label-md text-on-surface uppercase tracking-wider">Progresso</TableHead>
+                    <TableHead className="text-right pr-6 w-[80px] font-bold font-label-md text-label-md text-on-surface uppercase tracking-wider">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -235,9 +247,9 @@ export default function BudgetsList({
                       const ItemIconComponent = getDynamicIcon(budget.tagIcon);
 
                       return (
-                        <TableRow key={budget.id} className="hover:bg-gray-100">
+                        <TableRow key={budget.id} className="hover:bg-surface-container-low transition-colors border-b border-outline-variant/50">
                           <TableCell className="pl-6">
-                            <div className="flex items-center gap-2 text-sm">
+                            <div className="flex items-center gap-2 font-body-sm text-body-sm text-on-background">
                               <div
                                 className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 p-1"
                                 style={{ backgroundColor: budget.tagColor }}
@@ -247,15 +259,15 @@ export default function BudgetsList({
                               {budget.tagName}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">{formatCurrency(individualTotal)}</TableCell>
+                          <TableCell className="text-right font-body-sm text-body-sm text-on-background">{formatCurrency(individualTotal)}</TableCell>
                           <TableCell
-                            className="text-right font-medium hover:underline cursor-pointer text-blue-600"
+                            className="text-right font-bold font-body-sm text-body-sm hover:underline cursor-pointer text-secondary"
                             onClick={() => handleSpentAmountClick(budget.tag_id)}
                             title="Ver transações desta tag no período selecionado"
                           >
                             {formatCurrency(individualSpent)}
                           </TableCell>
-                          <TableCell className={`text-right font-medium ${individualDisponivel < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          <TableCell className={`text-right font-bold font-body-sm text-body-sm ${individualDisponivel < 0 ? 'text-[#ba1a1a]' : 'text-primary-v2'}`}>
                             {formatCurrency(individualDisponivel)}
                           </TableCell>
                           <TableCell>
@@ -268,7 +280,7 @@ export default function BudgetsList({
                           <TableCell className="text-right pr-6">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-on-surface-variant hover:text-secondary hover:bg-surface-container-high">
                                   <MoreVertical className="w-4 h-4" />
                                 </Button>
                               </DropdownMenuTrigger>
