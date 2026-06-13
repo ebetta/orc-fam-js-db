@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { api, auth } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { startOfDay, endOfDay, parseISO, format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { createPageUrl, getTagPath, getChildTagIds } from "@/utils";
+import { getTagPath, getChildTagIds } from "@/utils";
 
-import { convertCurrency, formatCurrencyWithSymbol } from "../components/utils/CurrencyConverter";
+import { convertCurrency } from "../components/utils/CurrencyConverter";
 import PeriodSummaryV2 from "../components/transactions/PeriodSummaryV2";
 
 import TransactionForm from "../components/transactions/TransactionForm";
@@ -36,7 +36,6 @@ import {
   Filter,
   SlidersHorizontal,
   ArrowUpRight,
-  History,
   Landmark,
 } from "lucide-react";
 
@@ -1050,13 +1049,6 @@ export default function TransactionsV2Page() {
             <h2 className="font-headline-lg text-headline-lg text-secondary">Transações</h2>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              to={createPageUrl("Transactions")}
-              className="flex items-center gap-2 px-4 py-2.5 font-label-md text-label-md text-on-surface-variant bg-surface-container-low border border-outline-variant rounded-xl hover:bg-surface-container-high transition-all"
-            >
-              <History className="w-4 h-4" />
-              Versão Clássica
-            </Link>
             <button
               onClick={() => {
                 const template = filters.accountId !== "all" ? { account_id: filters.accountId } : null;

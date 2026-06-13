@@ -8,11 +8,7 @@ import {
   CreditCard,
   Tag,
   Target,
-  TrendingUp,
   BarChart,
-  Menu,
-  // User, // User icon from lucide-react, might conflict with User state
-  Settings,
   LogOut,
   Upload,
   Receipt
@@ -70,13 +66,6 @@ const navigationItems = [
   },
   {
     title: "Transações",
-    url: createPageUrl("Transactions"),
-    icon: TrendingUp,
-    color: "text-indigo-600",
-    bgColor: "bg-indigo-50"
-  },
-  {
-    title: "Transações V2",
     url: createPageUrl("TransactionsV2"),
     icon: Receipt,
     color: "text-violet-600",

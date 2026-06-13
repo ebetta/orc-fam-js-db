@@ -2,7 +2,6 @@ import Layout from "./Layout.jsx";
 import Dashboard from "./Dashboard";
 import Accounts from "./Accounts";
 import Tags from "./Tags";
-import Transactions from "./Transactions";
 import TransactionsV2 from "./TransactionsV2";
 import Budgets from "./Budgets";
 import Reports from "./Reports";
@@ -17,7 +16,6 @@ const PAGES = {
     Dashboard: Dashboard,
     Accounts: Accounts,
     Tags: Tags,
-    Transactions: Transactions,
     TransactionsV2: TransactionsV2,
     Budgets: Budgets,
     Reports: Reports,
@@ -82,7 +80,6 @@ function PagesContent() {
                 <Route path="/Dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/Accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
                 <Route path="/Tags" element={<ProtectedRoute><Tags /></ProtectedRoute>} />
-                <Route path="/Transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
                 <Route path="/TransactionsV2" element={<ProtectedRoute><TransactionsV2 /></ProtectedRoute>} />
                 <Route path="/Budgets" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
                 <Route path="/Reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
