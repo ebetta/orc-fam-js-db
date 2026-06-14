@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
@@ -11,7 +10,7 @@ import html2canvas from 'html2canvas';
 
 const formatCurrency = (amount) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount);
 
-export default function BudgetReport({ groupedBudgets, summaryTotals, tags, isLoading, onClose, isPopup = false }) {
+export default function BudgetReport({ groupedBudgets, summaryTotals, tags, isLoading, onClose, isPopup = false, forPrint = false }) {
     const reportRef = useRef();
     const footerRef = useRef();
 
@@ -19,63 +18,65 @@ export default function BudgetReport({ groupedBudgets, summaryTotals, tags, isLo
         const input = reportRef.current;
         const buttons = input.querySelector('.report-buttons');
         if (buttons) buttons.style.display = 'none';
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const margin = 14;
+        const contentWidth = pageWidth - margin * 2;
+        let y = margin;
 
-        const pdf = new jsPDF('p', 'px', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        const margin = 40;
-        let y = margin; // Posição vertical inicial
-
-        const addImageToPdf = (canvas, pdf, yPos) => {
+        const renderElement = async (el) => {
+            const canvas = await html2canvas(el, { scale: 2, useCORS: true });
             const imgData = canvas.toDataURL('image/png');
-            const imgWidth = pdfWidth - (margin * 2);
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-            if (yPos + imgHeight > pdfHeight - margin) {
+            const imgHeight = (canvas.height * contentWidth) / canvas.width;
+            if (y + imgHeight > pageHeight - margin) {
                 pdf.addPage();
-                yPos = margin;
+                y = margin;
             }
-            pdf.addImage(imgData, 'PNG', margin, yPos, imgWidth, imgHeight);
-            return yPos + imgHeight;
+            pdf.addImage(imgData, 'PNG', margin, y, contentWidth, imgHeight);
+            y += imgHeight + 2;
         };
 
-        // Adiciona o cabeçalho do relatório
         const headerElement = input.querySelector('.report-header-for-pdf');
-        if (headerElement) {
-            const canvas = await html2canvas(headerElement, { scale: 2, useCORS: true });
-            y = addImageToPdf(canvas, pdf, y);
-        }
+        if (headerElement) await renderElement(headerElement);
 
-        // Adiciona a tabela de cabeçalho
         const tableHeaderElement = input.querySelector('table > thead');
+        let tableHeaderCanvasData = null;
+        let tableHeaderImgHeight = 0;
         if (tableHeaderElement) {
             const canvas = await html2canvas(tableHeaderElement, { scale: 2, useCORS: true });
-            y = addImageToPdf(canvas, pdf, y);
+            tableHeaderCanvasData = canvas.toDataURL('image/png');
+            tableHeaderImgHeight = (canvas.height * contentWidth) / canvas.width;
         }
+
+        const addTableHeader = () => {
+            if (!tableHeaderCanvasData) return;
+            if (y + tableHeaderImgHeight > pageHeight - margin) {
+                pdf.addPage();
+                y = margin;
+            }
+            pdf.addImage(tableHeaderCanvasData, 'PNG', margin, y, contentWidth, tableHeaderImgHeight);
+            y += tableHeaderImgHeight + 2;
+        };
+
+        if (tableHeaderCanvasData) addTableHeader();
 
         const groupElements = input.querySelectorAll('.budget-group');
         for (const groupEl of groupElements) {
             const canvas = await html2canvas(groupEl, { scale: 2, useCORS: true });
-            const groupImgHeight = (canvas.height * (pdfWidth - margin * 2)) / canvas.width;
-
-            if (y + groupImgHeight > pdfHeight - margin) {
+            const groupImgHeight = (canvas.height * contentWidth) / canvas.width;
+            if (y + groupImgHeight > pageHeight - margin) {
                 pdf.addPage();
                 y = margin;
-                // Readiciona o cabeçalho da tabela na nova página
-                if (tableHeaderElement) {
-                    const headerCanvas = await html2canvas(tableHeaderElement, { scale: 2, useCORS: true });
-                    y = addImageToPdf(headerCanvas, pdf, y);
-                }
+                addTableHeader();
             }
-            y = addImageToPdf(canvas, pdf, y);
+            const imgData = canvas.toDataURL('image/png');
+            pdf.addImage(imgData, 'PNG', margin, y, contentWidth, groupImgHeight);
+            y += groupImgHeight + 2;
         }
 
-        // Adiciona o rodapé da tabela
         const footerElement = footerRef.current;
-        if (footerElement) {
-            const canvas = await html2canvas(footerElement, { scale: 2, useCORS: true });
-            y = addImageToPdf(canvas, pdf, y);
-        }
+        if (footerElement) await renderElement(footerElement);
 
         if (buttons) buttons.style.display = 'flex';
         const now = new Date();
@@ -85,7 +86,6 @@ export default function BudgetReport({ groupedBudgets, summaryTotals, tags, isLo
 
     const handlePrint = useCallback(() => {
         const printContent = document.getElementById('budget-report-content');
-
         const printWindow = window.open('', '_blank');
         printWindow.document.write(`
             <html>
@@ -116,7 +116,6 @@ export default function BudgetReport({ groupedBudgets, summaryTotals, tags, isLo
                         <p>Gerado em: ${new Date().toLocaleDateString('pt-BR')}</p>
                     </div>
                     ${printContent.innerHTML.replace(/<Progress[^>]*\/>/g, (match) => {
-            // Substituir componente Progress por HTML simples para impressão
             return '<div class="progress-bar"><div class="progress-fill green" style="width: 50%;"></div></div>';
         })}
                 </body>
@@ -127,16 +126,13 @@ export default function BudgetReport({ groupedBudgets, summaryTotals, tags, isLo
         printWindow.close();
     }, []);
 
-    // Listen for custom events from parent component
     useEffect(() => {
         const reportContent = document.getElementById('budget-report-content');
         if (reportContent) {
             const handleExportEvent = () => handleExportPDF();
             const handlePrintEvent = () => handlePrint();
-
             reportContent.addEventListener('exportPDF', handleExportEvent);
             reportContent.addEventListener('printReport', handlePrintEvent);
-
             return () => {
                 reportContent.removeEventListener('exportPDF', handleExportEvent);
                 reportContent.removeEventListener('printReport', handlePrintEvent);
@@ -146,11 +142,11 @@ export default function BudgetReport({ groupedBudgets, summaryTotals, tags, isLo
 
     return (
         <div ref={reportRef}>
-            <Card className={`shadow-lg border-0 ${isPopup ? 'bg-white' : ''}`}>
-                <CardHeader className="border-b bg-gray-50 report-header-for-pdf">
+            <Card className={`${forPrint ? 'shadow-none border border-[#E2E8F0] rounded-none' : 'shadow-lg border-0'} ${isPopup ? 'bg-white' : ''}`}>
+                <CardHeader className={`border-b ${forPrint ? 'bg-white' : 'bg-[#eff4ff]'} report-header-for-pdf`}>
                     <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2">
-                            <Target className="w-5 h-5 text-orange-600" />
+                        <CardTitle className="flex items-center gap-2 text-[#0b1c30]">
+                            <Target className={`w-5 h-5 ${forPrint ? 'text-[#9d4300]' : 'text-orange-600'}`} />
                             Relatório de Orçamento
                         </CardTitle>
                         {isPopup && (
@@ -181,18 +177,18 @@ export default function BudgetReport({ groupedBudgets, summaryTotals, tags, isLo
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Orçamento (Tag)</TableHead>
-                                    <TableHead className="text-right">Orçado</TableHead>
-                                    <TableHead className="text-right">Gasto</TableHead>
-                                    <TableHead className="text-right">Disponível</TableHead>
+                                    <TableHead className="text-[#0b1c30]">Orçamento (Tag)</TableHead>
+                                    <TableHead className="text-right text-[#0b1c30]">Orçado</TableHead>
+                                    <TableHead className="text-right text-[#0b1c30]">Gasto</TableHead>
+                                    <TableHead className="text-right text-[#0b1c30]">Disponível</TableHead>
                                 </TableRow>
                             </TableHeader>
                             {groupedBudgets
                                 .filter(group => group.groupTotalOrcado !== 0 || group.groupTotalGasto !== 0)
                                 .map(group => (
                                     <TableBody key={group.parentTag.id} className="budget-group">
-                                        <TableRow className="bg-gray-100 hover:bg-gray-100">
-                                            <TableCell colSpan="1" className="font-bold text-gray-700">
+                                        <TableRow className={`${forPrint ? 'bg-white' : 'bg-[#eff4ff]'} hover:bg-[#eff4ff]`}>
+                                            <TableCell colSpan="1" className="font-bold text-[#0b1c30]">
                                                 <div className="flex items-center gap-2">
                                                     <span className="w-3 h-3 rounded-full" style={{ backgroundColor: group.parentTag.color }}></span>
                                                     {group.parentTag.name}
@@ -205,9 +201,9 @@ export default function BudgetReport({ groupedBudgets, summaryTotals, tags, isLo
                                                     />
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-right font-bold text-gray-700">{formatCurrency(group.groupTotalOrcado)}</TableCell>
-                                            <TableCell className="text-right font-bold text-gray-700">{formatCurrency(group.groupTotalGasto)}</TableCell>
-                                            <TableCell className={`text-right font-bold ${group.groupTotalDisponivel < 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(group.groupTotalDisponivel)}</TableCell>
+                                            <TableCell className="text-right font-bold text-[#0b1c30]">{formatCurrency(group.groupTotalOrcado)}</TableCell>
+                                            <TableCell className="text-right font-bold text-[#0b1c30]">{formatCurrency(group.groupTotalGasto)}</TableCell>
+                                            <TableCell className={`text-right font-bold ${group.groupTotalDisponivel < 0 ? 'text-[#ba1a1a]' : 'text-[#006c49]'}`}>{formatCurrency(group.groupTotalDisponivel)}</TableCell>
                                         </TableRow>
                                         {group.budgets
                                             .filter(item => (item.total_budgeted_for_period || 0) !== 0 || (item.spent_amount || 0) !== 0)
@@ -215,11 +211,10 @@ export default function BudgetReport({ groupedBudgets, summaryTotals, tags, isLo
                                                 const orcado = item.total_budgeted_for_period || 0;
                                                 const gasto = item.spent_amount || 0;
                                                 const disponivel = orcado - gasto;
-
                                                 return (
                                                     <TableRow key={item.id}>
                                                         <TableCell className="pl-8">
-                                                            <div className="font-medium flex items-center gap-2">
+                                                            <div className="font-medium flex items-center gap-2 text-[#0b1c30]">
                                                                 <span className="w-2.5 h-2.5 rounded-full tag-color" style={{ backgroundColor: item.tagColor }}></span>
                                                                 {item.tagName}
                                                             </div>
@@ -231,28 +226,28 @@ export default function BudgetReport({ groupedBudgets, summaryTotals, tags, isLo
                                                                 />
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="text-right">{formatCurrency(orcado)}</TableCell>
-                                                        <TableCell className={`text-right ${gasto > orcado ? 'text-red-600 font-medium' : ''}`}>{formatCurrency(gasto)}</TableCell>
-                                                        <TableCell className={`text-right ${disponivel < 0 ? 'text-red-600 font-medium' : 'text-green-600'}`}>{formatCurrency(disponivel)}</TableCell>
+                                                        <TableCell className="text-right text-[#0b1c30]">{formatCurrency(orcado)}</TableCell>
+                                                        <TableCell className={`text-right ${gasto > orcado ? 'text-[#ba1a1a] font-medium' : 'text-[#0b1c30]'}`}>{formatCurrency(gasto)}</TableCell>
+                                                        <TableCell className={`text-right ${disponivel < 0 ? 'text-[#ba1a1a] font-medium' : 'text-[#006c49]'}`}>{formatCurrency(disponivel)}</TableCell>
                                                     </TableRow>
                                                 );
                                             })}
                                     </TableBody>
                                 ))}
                             <TableFooter ref={footerRef}>
-                                <TableRow className="bg-gray-50 hover:bg-gray-50 footer">
-                                    <TableCell className="font-bold">Total Geral</TableCell>
-                                    <TableCell className="text-right font-bold">{formatCurrency(summaryTotals.orcado)}</TableCell>
-                                    <TableCell className="text-right font-bold">{formatCurrency(summaryTotals.gasto)}</TableCell>
-                                    <TableCell className={`text-right font-bold ${summaryTotals.disponivel < 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(summaryTotals.disponivel)}</TableCell>
+                                <TableRow className={`${forPrint ? 'bg-white' : 'bg-[#f8f9ff]'} hover:bg-[#f8f9ff] footer report-footer`}>
+                                    <TableCell className="font-bold text-[#0b1c30]">Total Geral</TableCell>
+                                    <TableCell className="text-right font-bold text-[#0b1c30]">{formatCurrency(summaryTotals.orcado)}</TableCell>
+                                    <TableCell className="text-right font-bold text-[#0b1c30]">{formatCurrency(summaryTotals.gasto)}</TableCell>
+                                    <TableCell className={`text-right font-bold ${summaryTotals.disponivel < 0 ? 'text-[#ba1a1a]' : 'text-[#006c49]'}`}>{formatCurrency(summaryTotals.disponivel)}</TableCell>
                                 </TableRow>
                             </TableFooter>
                         </Table>
                     ) : (
                         <div className="text-center py-12 px-6">
-                            <Inbox className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-lg font-medium text-gray-800">Nenhum dado encontrado</h3>
-                            <p className="text-gray-500 text-sm">Nenhum orçamento encontrado para as tags selecionadas.</p>
+                            <Inbox className="w-12 h-12 text-[#bbcabf] mx-auto mb-4" />
+                            <h3 className="text-lg font-medium text-[#0b1c30]">Nenhum dado encontrado</h3>
+                            <p className="text-[#6c7a71] text-sm">Nenhum orçamento encontrado para as tags selecionadas.</p>
                         </div>
                     )}
                 </CardContent>

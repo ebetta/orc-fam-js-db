@@ -1,25 +1,21 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/api"; 
-import { motion } from "framer-motion";
-import { FileDown, Printer, X } from 'lucide-react';
+import { motion, AnimatePresence } from "framer-motion";
+import { Maximize, Minimize, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 import ReportsHeader from "../components/reports/ReportsHeader";
 import ReportFilters from "../components/reports/ReportFilters";
 import ExpensesByTagReport from "../components/reports/ExpensesByTagReport";
 import BudgetReport from "../components/reports/BudgetReport";
-import { startOfMonth, endOfMonth, parseISO, isWithinInterval, max, min, startOfYear, endOfYear, startOfQuarter, endOfQuarter, differenceInCalendarMonths, differenceInCalendarWeeks, differenceInCalendarYears, format } from "date-fns";
+import { generatePdfBlobUrl } from "@/lib/pdfGenerator";
+import { startOfMonth, endOfMonth, parseISO, max, min, format, differenceInCalendarMonths, differenceInCalendarWeeks, differenceInCalendarYears } from "date-fns";
 
-// Helper para calcular o número de períodos de um orçamento dentro do filtro
 const getNumberOfPeriods = (budget, filterStart, filterEnd) => {
-  if (!filterStart || !filterEnd) return 1; // Para o filtro "Todos os períodos"
-
-  // Intersecção entre o período do orçamento e o período do filtro
+  if (!filterStart || !filterEnd) return 1;
   const budgetStart = max([parseISO(budget.start_date), filterStart]);
   const budgetEnd = min([parseISO(budget.end_date), filterEnd]);
-
-  if (budgetEnd < budgetStart) return 0; // Orçamento fora do período do filtro
-
+  if (budgetEnd < budgetStart) return 0;
   switch (budget.period) {
     case 'monthly':
       return differenceInCalendarMonths(budgetEnd, budgetStart) + 1;
@@ -37,48 +33,41 @@ export default function ReportsPage() {
   const [allTransactions, setAllTransactions] = useState([]);
   const [allBudgets, setAllBudgets] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showExpensesReport, setShowExpensesReport] = useState(false);
-  const [showBudgetReport, setShowBudgetReport] = useState(false);
+  const [activeReport, setActiveReport] = useState(null);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [generationKey, setGenerationKey] = useState(0);
+  const [modalSize, setModalSize] = useState('normal'); // 'normal' | 'maximized'
 
   const [filters, setFilters] = useState({
     period: {
       from: startOfMonth(new Date()),
       to: endOfMonth(new Date()),
     },
-    selectedTags: {}, // e.g., { tagId1: true, tagId2: false }
-    reportType: 'expenses_by_tag', // expenses_by_tag, budget
+    selectedTags: {},
+    reportType: 'expenses_by_tag',
   });
 
   const calculateSpentAmountForPeriod = useCallback((budget, transactionsInPeriod, allTags) => {
-    if (!budget.tag_id) return 0; // budget.tag_id é o ID da tag específica do orçamento.
-
-    // Encontrar todas as tags filhas (e a própria tag) que pertencem à tag do orçamento.
-    // Isso é necessário porque uma transação pode estar em uma sub-tag, mas ainda deve contar para o orçamento da tag pai.
+    if (!budget.tag_id) return 0;
     const relevantTagIds = new Set();
     const budgetTag = allTags.find(t => t.id === budget.tag_id);
-
     if (budgetTag) {
-      relevantTagIds.add(budgetTag.id); // Adiciona a própria tag do orçamento
-
-      // Função para encontrar todas as tags filhas recursivamente
+      relevantTagIds.add(budgetTag.id);
       const findChildTags = (parentId) => {
         allTags.forEach(tag => {
           if (tag.parent_tag_id === parentId) {
             relevantTagIds.add(tag.id);
-            findChildTags(tag.id); // Recursão para encontrar netas, etc.
+            findChildTags(tag.id);
           }
         });
       };
-
-      findChildTags(budgetTag.id); // Encontra todas as tags filhas da tag do orçamento
+      findChildTags(budgetTag.id);
     } else {
-      // Se a tag do orçamento não for encontrada, não podemos calcular os gastos.
-      // Isso pode indicar um problema de dados ou uma tag inativa.
       return 0;
     }
-
     return transactionsInPeriod
-      .filter(t => t.transaction_type === 'expense' && relevantTagIds.has(t.tag_id)) // Verifica se a transação pertence a qualquer uma das tags relevantes (principal ou filhas)
+      .filter(t => t.transaction_type === 'expense' && relevantTagIds.has(t.tag_id))
       .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
   }, []);
 
@@ -90,26 +79,20 @@ export default function ReportsPage() {
         api.get('transactions', { _sort: 'transaction_date', _order: 'desc', _limit: 5000 }),
         api.get('budgets'),
       ]);
-
       if (tagsResponse.error) throw tagsResponse.error;
       if (transactionsResponse.error) throw transactionsResponse.error;
       if (budgetsResponse.error) throw budgetsResponse.error;
-
       const tagsData = tagsResponse.data || [];
       const transactionsData = transactionsResponse.data || [];
       const budgetsData = budgetsResponse.data || [];
-
       setAllTags(tagsData);
       setAllTransactions(transactionsData);
-
       const initialSelectedTags = {};
       tagsData.forEach(tag => {
         initialSelectedTags[tag.id] = true;
       });
       setFilters(prev => ({ ...prev, selectedTags: initialSelectedTags }));
-
       setAllBudgets(budgetsData);
-
     } catch (error) {
       console.error("Error loading report data:", error.message);
     }
@@ -123,25 +106,19 @@ export default function ReportsPage() {
   const filteredTransactions = useMemo(() => {
     if (isLoading) return [];
     const selectedTagIds = Object.keys(filters.selectedTags).filter(id => filters.selectedTags[id]);
-
     return allTransactions.filter(t => {
-      // Use string comparison for dates to avoid timezone issues
       const transactionDateStr = t.transaction_date;
-
       let isAfterStart = true;
       if (filters.period.from) {
         const fromStr = format(filters.period.from, 'yyyy-MM-dd');
         isAfterStart = transactionDateStr >= fromStr;
       }
-
       let isBeforeEnd = true;
       if (filters.period.to) {
         const toStr = format(filters.period.to, 'yyyy-MM-dd');
         isBeforeEnd = transactionDateStr <= toStr;
       }
-
       const isTagSelected = selectedTagIds.includes(t.tag_id);
-
       return isAfterStart && isBeforeEnd && isTagSelected;
     });
   }, [allTransactions, filters, isLoading]);
@@ -149,18 +126,11 @@ export default function ReportsPage() {
   const [groupedBudgetsForAccordion, setGroupedBudgetsForAccordion] = useState([]);
   const [summaryTotals, setSummaryTotals] = useState({ orcado: 0, gasto: 0, disponivel: 0 });
 
-  // Efeito principal para filtrar e agrupar orçamentos baseado no período selecionado
   useEffect(() => {
     if (isLoading) return;
-
-    // 1. Determinar o intervalo de datas do filtro
     let periodStart, periodEnd;
-
-    // Use filters.period.from and filters.period.to directly
     periodStart = filters.period.from;
     periodEnd = filters.period.to;
-
-    // 2. Filtrar transações para corresponder ao período do filtro
     const transactionsForPeriod = periodStart && periodEnd
       ? allTransactions.filter(t => {
         const startStr = format(periodStart, 'yyyy-MM-dd');
@@ -168,8 +138,6 @@ export default function ReportsPage() {
         return t.transaction_date >= startStr && t.transaction_date <= endStr;
       })
       : allTransactions;
-
-    // 3. Filtrar orçamentos que são relevantes para o período do filtro
     const relevantBudgets = periodStart && periodEnd
       ? allBudgets.filter(budget => {
         const budgetStart = parseISO(budget.start_date);
@@ -177,10 +145,7 @@ export default function ReportsPage() {
         return budgetStart <= periodEnd && budgetEnd >= periodStart;
       })
       : allBudgets;
-
-    // 4. Preparar lista unificada de orçamentos (Reais + Virtuais)
     const allBudgetItems = [];
-
     if (allTags.length) {
       const parentTagIds = new Set(allTags.map(t => t.parent_tag_id).filter(Boolean));
       const activeExpenseTags = allTags.filter(t =>
@@ -188,17 +153,12 @@ export default function ReportsPage() {
         t.tag_type === 'expense' &&
         (t.parent_tag_id || !parentTagIds.has(t.id))
       );
-
       activeExpenseTags.forEach(tag => {
-        // Encontrar orçamentos existentes para esta tag no período
         const tagBudgets = relevantBudgets.filter(b => b.tag_id === tag.id);
-
         if (tagBudgets.length > 0) {
-          // Adicionar orçamentos reais
           tagBudgets.forEach(budget => {
             const periodsInFilter = getNumberOfPeriods(budget, periodStart, periodEnd);
             const totalBudgetedForPeriod = (parseFloat(budget.amount) || 0) * periodsInFilter;
-
             allBudgetItems.push({
               ...budget,
               tagName: tag.name,
@@ -209,7 +169,6 @@ export default function ReportsPage() {
             });
           });
         } else {
-          // Adicionar orçamento virtual (placeholder para a tag)
           const virtualBudget = {
             id: `virtual-${tag.id}`,
             tag_id: tag.id,
@@ -222,7 +181,6 @@ export default function ReportsPage() {
             isVirtual: true,
             is_active: true
           };
-
           allBudgetItems.push({
             ...virtualBudget,
             spent_amount: calculateSpentAmountForPeriod({ tag_id: tag.id }, transactionsForPeriod, allTags),
@@ -231,25 +189,18 @@ export default function ReportsPage() {
         }
       });
     }
-
-    // 5. Calcular os totais para o cabeçalho
     const totalOrcado = allBudgetItems.reduce((sum, b) => sum + (b.total_budgeted_for_period || 0), 0);
-    const totalGasto = allBudgetItems.reduce((sum, b) => sum + (parseFloat(b.spent_amount) || 0), 0);
+    const totalGasto = allBudgetItems.reduce((sum, b) => sum + (parseFloat(b.spent_amount || 0)), 0);
     setSummaryTotals({
       orcado: totalOrcado,
       gasto: totalGasto,
       disponivel: totalOrcado - totalGasto,
     });
-
-    // 6. Agrupar os orçamentos para o Accordion
     if (!allBudgetItems.length) {
       setGroupedBudgetsForAccordion([]);
       return;
     }
-
-    // Mapa de tags pelo ID
     const tagMapById = Object.fromEntries(allTags.map(t => [t.id, t]));
-
     const getRootTagForBudget = (budgetTagId) => {
       let currentTag = tagMapById[budgetTagId];
       if (!currentTag) {
@@ -260,7 +211,6 @@ export default function ReportsPage() {
           isRoot: true
         };
       }
-
       let rootTag = currentTag;
       while (rootTag.parent_tag_id && tagMapById[rootTag.parent_tag_id]) {
         const parent = tagMapById[rootTag.parent_tag_id];
@@ -269,12 +219,9 @@ export default function ReportsPage() {
       }
       return { ...rootTag, isRoot: true };
     };
-
     const groups = {};
-
     allBudgetItems.forEach(item => {
       const rootTag = getRootTagForBudget(item.tag_id);
-
       if (!groups[rootTag.id]) {
         groups[rootTag.id] = {
           parentTag: rootTag,
@@ -283,12 +230,10 @@ export default function ReportsPage() {
           groupTotalGasto: 0
         };
       }
-
       groups[rootTag.id].budgets.push(item);
       groups[rootTag.id].groupTotalOrcado += item.total_budgeted_for_period || 0;
       groups[rootTag.id].groupTotalGasto += parseFloat(item.spent_amount || 0);
     });
-
     const processedGroups = Object.values(groups).map(group => ({
       ...group,
       groupTotalDisponivel: group.groupTotalOrcado - group.groupTotalGasto
@@ -298,127 +243,173 @@ export default function ReportsPage() {
       }
       return b.groupTotalOrcado - a.groupTotalOrcado;
     });
-
     setGroupedBudgetsForAccordion(processedGroups);
-
   }, [allBudgets, allTransactions, allTags, isLoading, filters.period, calculateSpentAmountForPeriod]);
 
   const handleGenerateReport = () => {
-    if (filters.reportType === 'expenses_by_tag') {
-      setShowExpensesReport(true);
-      setShowBudgetReport(false); // Ensure only one report is shown at a time
-    } else if (filters.reportType === 'budget') {
-      setShowBudgetReport(true);
-      setShowExpensesReport(false); // Ensure only one report is shown at a time
-    }
+    setPdfUrl(null);
+    setModalSize('normal');
+    setGenerationKey(k => k + 1);
+    setActiveReport(filters.reportType === 'expenses_by_tag' ? 'expenses' : 'budget');
+    setIsGeneratingPdf(true);
   };
 
+  const handleCloseReport = () => {
+    setActiveReport(null);
+    setPdfUrl(null);
+    setIsGeneratingPdf(false);
+    setModalSize('normal');
+  };
+
+  const toggleModalSize = () => {
+    setModalSize(prev => prev === 'normal' ? 'maximized' : 'normal');
+  };
+
+  useEffect(() => {
+    if (!activeReport || isLoading) return;
+    const generate = async () => {
+      try {
+        const elementId = activeReport === 'expenses' ? 'hidden-expenses-report' : 'hidden-budget-report';
+        const url = await generatePdfBlobUrl(elementId);
+        setPdfUrl(url);
+      } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+      } finally {
+        setIsGeneratingPdf(false);
+      }
+    };
+    const timer = setTimeout(generate, 100);
+    return () => clearTimeout(timer);
+  }, [activeReport, isLoading, generationKey]);
+
   return (
-    <div className="p-6 space-y-8 max-w-7xl mx-auto min-h-screen flex flex-col">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-        <ReportsHeader />
-      </motion.div>
+    <div className="v2-theme font-body-md text-body-md text-on-background bg-background min-h-screen">
+      <div className="p-6 lg:p-10 space-y-6">
+        {/* ── Page Header ── */}
+        <motion.div
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <ReportsHeader />
+        </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }} className="flex-grow">
-        <ReportFilters
-          allTags={allTags}
-          filters={filters}
-          onFiltersChange={setFilters}
-          onGenerateReport={handleGenerateReport}
-          isLoading={isLoading}
-        />
-      </motion.div>
+        {/* ── Filters ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
+        >
+          <ReportFilters
+            allTags={allTags}
+            filters={filters}
+            onFiltersChange={setFilters}
+            onGenerateReport={handleGenerateReport}
+            isLoading={isLoading}
+          />
+        </motion.div>
+      </div>
 
-      {/* Popup para Relatório de Despesas */}
-      {showExpensesReport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-          <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-lg shadow-xl flex flex-col">
-            {/* Header fixo com botões */}
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50 rounded-t-lg flex-shrink-0">
-              <span className="font-semibold text-gray-700">Ações do Relatório</span>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={() => {
-                  const reportContent = document.getElementById('expenses-report-content');
-                  if (reportContent) {
-                    const event = new CustomEvent('exportPDF');
-                    reportContent.dispatchEvent(event);
-                  }
-                }} title="Salvar como PDF">
-                  <FileDown className="w-5 h-5" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => {
-                  const reportContent = document.getElementById('expenses-report-content');
-                  if (reportContent) {
-                    const event = new CustomEvent('printReport');
-                    reportContent.dispatchEvent(event);
-                  }
-                }} title="Imprimir relatório">
-                  <Printer className="w-5 h-5" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => setShowExpensesReport(false)}>
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-            </div>
-            {/* Conteúdo com scroll */}
-            <div className="overflow-auto flex-grow">
-              <ExpensesByTagReport
-                transactions={filteredTransactions}
-                tags={allTags}
-                isLoading={isLoading}
-                onClose={() => setShowExpensesReport(false)}
-                isPopup={false}
-              />
-            </div>
+      {/* Hidden rendering area for PDF generation */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 0, width: '794px' }}>
+        {activeReport === 'expenses' && (
+          <div id="hidden-expenses-report">
+            <ExpensesByTagReport
+              transactions={filteredTransactions}
+              tags={allTags}
+              isLoading={false}
+              forPrint={true}
+            />
           </div>
-        </div>
-      )}
-
-      {/* Popup para Relatório de Orçamento */}
-      {showBudgetReport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-          <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-lg shadow-xl flex flex-col">
-            {/* Header fixo com botões */}
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50 rounded-t-lg flex-shrink-0">
-              <span className="font-semibold text-gray-700">Ações do Relatório</span>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={() => {
-                  const reportContent = document.getElementById('budget-report-content');
-                  if (reportContent) {
-                    const event = new CustomEvent('exportPDF');
-                    reportContent.dispatchEvent(event);
-                  }
-                }} title="Salvar como PDF">
-                  <FileDown className="w-5 h-5" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => {
-                  const reportContent = document.getElementById('budget-report-content');
-                  if (reportContent) {
-                    const event = new CustomEvent('printReport');
-                    reportContent.dispatchEvent(event);
-                  }
-                }} title="Imprimir relatório">
-                  <Printer className="w-5 h-5" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => setShowBudgetReport(false)}>
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-            </div>
-            {/* Conteúdo com scroll */}
-            <div className="overflow-auto flex-grow">
-              <BudgetReport
-                groupedBudgets={groupedBudgetsForAccordion}
-                summaryTotals={summaryTotals}
-                tags={allTags}
-                isLoading={isLoading}
-                onClose={() => setShowBudgetReport(false)}
-                isPopup={false}
-              />
-            </div>
+        )}
+        {activeReport === 'budget' && (
+          <div id="hidden-budget-report">
+            <BudgetReport
+              groupedBudgets={groupedBudgetsForAccordion}
+              summaryTotals={summaryTotals}
+              tags={allTags}
+              isLoading={false}
+              forPrint={true}
+            />
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* PDF Viewer Modal */}
+      <AnimatePresence>
+        {activeReport && (
+          <motion.div
+            key="pdf-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex justify-center items-center p-4 bg-[#0b1c30]/40 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.25 }}
+              className={`bg-white rounded-xl border border-[#bbcabf] shadow-[0_8px_30px_rgba(0,0,0,0.04)] flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
+                modalSize === 'maximized'
+                  ? 'w-[98vw] h-[96vh] max-w-none'
+                  : 'w-full max-w-5xl h-[92vh]'
+              }`}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3 border-b border-[#bbcabf] bg-[#eff4ff] flex-shrink-0">
+                <h2 className="text-[#0b1c30] font-semibold text-base font-sans">
+                  {activeReport === 'expenses' ? 'Relatório de Despesas' : 'Relatório de Orçamento'}
+                </h2>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleModalSize}
+                    title={modalSize === 'normal' ? 'Maximizar' : 'Restaurar'}
+                    className="hover:bg-[#dce9ff]"
+                  >
+                    {modalSize === 'normal' ? (
+                      <Maximize className="w-4 h-4 text-[#006c49]" />
+                    ) : (
+                      <Minimize className="w-4 h-4 text-[#006c49]" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleCloseReport}
+                    title="Fechar"
+                    className="hover:bg-[#dce9ff]"
+                  >
+                    <X className="w-5 h-5 text-[#0b1c30]" />
+                  </Button>
+                </div>
+              </div>
+              {/* Content */}
+              <div className="flex-grow bg-[#f8f9ff] relative">
+                {isGeneratingPdf ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#006c49]"></div>
+                    <p className="text-[#6c7a71] text-sm font-medium">Gerando PDF...</p>
+                  </div>
+                ) : pdfUrl ? (
+                  <iframe 
+                    src={pdfUrl} 
+                    className="w-full h-full border-0" 
+                    title="PDF Viewer" 
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-[#6c7a71]">
+                    Não foi possível gerar o PDF.
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
