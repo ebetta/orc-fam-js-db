@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,19 +24,17 @@ export default function AccountForm({ account, onSave, onCancel }) {
     currency: account?.currency || "BRL",
     is_active: account?.is_active !== false
   });
-  
+
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    
     try {
       await onSave(formData);
     } catch (error) {
       console.error("Erro ao salvar conta:", error);
     }
-    
     setIsLoading(false);
   };
 
@@ -49,26 +46,30 @@ export default function AccountForm({ account, onSave, onCancel }) {
   };
 
   return (
-    <Card className="shadow-xl border-0">
-      <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <CreditCard className="w-6 h-6 text-blue-600" />
-            </div>
+    <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-2xl overflow-hidden">
+      <div className="px-6 py-4 border-b border-outline-variant flex items-center justify-between bg-surface-container-low">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-secondary/10 rounded-lg">
+            <CreditCard className="w-5 h-5 text-secondary" />
+          </div>
+          <h3 className="font-headline-sm text-headline-sm text-on-background">
             {account ? "Editar Conta" : "Nova Conta"}
-          </CardTitle>
-          <Button variant="ghost" size="icon" onClick={onCancel}>
-            <X className="w-5 h-5" />
-          </Button>
+          </h3>
         </div>
-      </CardHeader>
-      
-      <CardContent className="p-8">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium">
+              <Label htmlFor="name" className="text-sm font-medium text-on-background">
                 Nome da Conta *
               </Label>
               <Input
@@ -77,19 +78,19 @@ export default function AccountForm({ account, onSave, onCancel }) {
                 onChange={(e) => handleInputChange("name", e.target.value)}
                 placeholder="Ex: Conta Corrente Banco do Brasil"
                 required
-                className="h-12"
+                className="h-12 bg-surface-container-low border-outline-variant rounded-xl text-on-background focus:ring-2 focus:ring-secondary"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="account_type" className="text-sm font-medium">
+              <Label htmlFor="account_type" className="text-sm font-medium text-on-background">
                 Tipo de Conta *
               </Label>
               <Select
                 value={formData.account_type}
                 onValueChange={(value) => handleInputChange("account_type", value)}
               >
-                <SelectTrigger className="h-12">
+                <SelectTrigger className="h-12 bg-surface-container-low border-outline-variant rounded-xl text-on-background focus:ring-2 focus:ring-secondary">
                   <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -103,7 +104,7 @@ export default function AccountForm({ account, onSave, onCancel }) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="bank" className="text-sm font-medium">
+              <Label htmlFor="bank" className="text-sm font-medium text-on-background">
                 Banco / Instituição
               </Label>
               <Input
@@ -111,12 +112,12 @@ export default function AccountForm({ account, onSave, onCancel }) {
                 value={formData.bank}
                 onChange={(e) => handleInputChange("bank", e.target.value)}
                 placeholder="Ex: Banco do Brasil, Nubank"
-                className="h-12"
+                className="h-12 bg-surface-container-low border-outline-variant rounded-xl text-on-background focus:ring-2 focus:ring-secondary"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="account_number" className="text-sm font-medium">
+              <Label htmlFor="account_number" className="text-sm font-medium text-on-background">
                 Número da Conta
               </Label>
               <Input
@@ -124,12 +125,12 @@ export default function AccountForm({ account, onSave, onCancel }) {
                 value={formData.account_number}
                 onChange={(e) => handleInputChange("account_number", e.target.value)}
                 placeholder="Ex: 12345-6"
-                className="h-12"
+                className="h-12 bg-surface-container-low border-outline-variant rounded-xl text-on-background focus:ring-2 focus:ring-secondary"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="initial_balance" className="text-sm font-medium">
+              <Label htmlFor="initial_balance" className="text-sm font-medium text-on-background">
                 Saldo Inicial *
               </Label>
               <Input
@@ -140,19 +141,19 @@ export default function AccountForm({ account, onSave, onCancel }) {
                 onChange={(e) => handleInputChange("initial_balance", parseFloat(e.target.value) || 0)}
                 placeholder="0,00"
                 required
-                className="h-12"
+                className="h-12 bg-surface-container-low border-outline-variant rounded-xl text-on-background focus:ring-2 focus:ring-secondary"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="currency" className="text-sm font-medium">
+              <Label htmlFor="currency" className="text-sm font-medium text-on-background">
                 Moeda
               </Label>
               <Select
                 value={formData.currency}
                 onValueChange={(value) => handleInputChange("currency", value)}
               >
-                <SelectTrigger className="h-12">
+                <SelectTrigger className="h-12 bg-surface-container-low border-outline-variant rounded-xl text-on-background focus:ring-2 focus:ring-secondary">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -164,12 +165,12 @@ export default function AccountForm({ account, onSave, onCancel }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-surface-container-low rounded-xl border border-outline-variant/50">
             <div>
-              <Label htmlFor="is_active" className="text-sm font-medium">
+              <Label htmlFor="is_active" className="text-sm font-medium text-on-background">
                 Conta Ativa
               </Label>
-              <p className="text-xs text-gray-600 mt-1">
+              <p className="text-xs text-on-surface-variant mt-0.5">
                 Contas inativas não aparecem nos cálculos principais
               </p>
             </div>
@@ -180,20 +181,20 @@ export default function AccountForm({ account, onSave, onCancel }) {
             />
           </div>
 
-          <div className="flex justify-end gap-4 pt-6 border-t">
+          <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant">
             <Button
               type="button"
               variant="outline"
               onClick={onCancel}
               disabled={isLoading}
-              className="h-12 px-8"
+              className="h-11 px-6 border-outline-variant text-on-surface-variant hover:bg-surface-container-high"
             >
               Cancelar
             </Button>
             <Button
               type="submit"
               disabled={isLoading}
-              className="h-12 px-8 bg-blue-600 hover:bg-blue-700"
+              className="h-11 px-6 bg-secondary hover:bg-secondary/90 text-on-secondary"
             >
               {isLoading ? (
                 <>
@@ -209,7 +210,7 @@ export default function AccountForm({ account, onSave, onCancel }) {
             </Button>
           </div>
         </form>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
