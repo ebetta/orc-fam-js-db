@@ -1,0 +1,14 @@
+---
+description: UI em português e padrões visuais Modern Wealth
+alwaysApply: true
+---
+
+# UI e Design
+
+- Todo texto visível ao usuário (labels, títulos, botões, mensagens) deve estar em **português brasileiro**.
+- Siga `DESIGN.md` (tokens/cores) e `GEMINI.md` (padrões detalhados). Estilo: **Corporate Modern / Quiet Premium**.
+- **Não use** Material Design clássico, texturas de papel ou sombras pesadas.
+- Use componentes **shadcn/ui** existentes (`@/components/ui`); estilize com Tailwind e variáveis de `src/index.css`.
+- Valores financeiros: fonte Inter, peso `font-medium` ou `font-semibold`.
+- Cartões: `rounded-lg`/`rounded-xl`, sombras suaves; hover com leve elevação.
+- Ícones: `lucide-react`. Animações: `framer-motion` com moderação.

@@ -1,0 +1,32 @@
+---
+description: Convenções da API Express + PostgreSQL local
+globs: server.js
+alwaysApply: false
+---
+
+# API Local (`server.js`)
+
+- Servidor Express na porta **3001**; frontend consome via `src/lib/api.js` (`http://localhost:3001/api`).
+- Banco PostgreSQL local: database `orc-fam`, porta 5432 (credenciais no topo de `server.js`).
+- Auth mock: `MOCK_USER_ID = 11111111-1111-1111-1111-111111111111`; rotas `/api/auth/login` e `/api/auth/user`.
+
+## Endpoints
+
+- CRUD genérico: `/api/{accounts,budgets,tags,transactions}` — filtrados por `user_id`.
+- Global (sem `user_id`): `/api/exchange_rates`.
+- Patrimônio: `GET /api/patrimony`, `POST /api/patrimony/rebuild`.
+
+## Formato de resposta
+
+```js
+{ data: rows, error: null }           // sucesso
+{ data: null, error: { message } }    // erro (status 4xx/5xx)
+```
+
+## Query params (GET)
+
+- `_sort` — campo ou lista separada por vírgula
+- `_order` — `asc` ou `desc`
+- `_limit` — inteiro
+
+Esquema das tabelas: ver `GEMINI.md`. Migração one-time: `migration.sql`.

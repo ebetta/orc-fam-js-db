@@ -1,0 +1,21 @@
+---
+description: Rotas, páginas e navegação do React Router
+globs: src/pages/**
+alwaysApply: false
+---
+
+# Páginas e Rotas
+
+Ao criar ou renomear uma página, atualize **os três lugares**:
+
+1. `src/pages/index.jsx` — import, objeto `PAGES`, e `<Route path="...">`
+2. `src/pages/Layout.jsx` — array `navigationItems` (título em PT, ícone, cores)
+3. Componente em `src/pages/` ou `src/components/`
+
+## Convenções
+
+- `/login` é a única rota pública (sem `Layout` nem sidebar).
+- Demais rotas usam `ProtectedRoute` + `Layout`.
+- URLs de navegação: `createPageUrl("NomeDaPagina")` em `src/utils/index.ts` (lowercase, espaços → hífens).
+- Os `path` das rotas em `index.jsx` usam PascalCase (ex.: `/Dashboard`, `/TransactionsV2`) — mantenha consistente com `PAGES`.
+- Sidebar: labels em português ("Contas", "Categorias", "Orçamentos", etc.), mesmo que o nome do componente seja em inglês.

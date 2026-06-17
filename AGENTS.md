@@ -12,7 +12,7 @@
 ## Backend: dual setup, local one is active
 - `src/lib/api.js` is the active backend: talks to a local Express server (`http://localhost:3001/api`), uses mock auth via `localStorage`.
 - `src/lib/supabaseClient.js` creates a Supabase client but is **not imported** by the active API layer — the app runs fully local today.
-- `.env` requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (needed if `supabaseClient.js` is ever used); `.env` is gitignored, no `.env.example`.
+- `.env` is gitignored; copy `.env.example` to `.env`. Supabase vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) are only needed if `supabaseClient.js` is ever used — the app runs fully local today.
 
 ### Local Express server (`server.js`)
 - Requires local PostgreSQL with database `orc-fam` on port 5432 (credentials in `server.js`).
@@ -33,6 +33,13 @@
 - CSS variables in `src/index.css` (shadcn theme variables + sidebar variables).
 - `@/` resolves to `src/` (`vite.config.js`, `jsconfig.json`). Note: `jsconfig.json` only includes `src/**/*.js` and `src/**/*.jsx` (not `.ts`).
 - **Portuguese UI** — all sidebar labels, page titles, and user-facing text are in Portuguese (financial control app for Brazilian families).
-- **Style guide in `GEMINI.md`**: Material Design principles, paper-texture cards, vibrant colors, elevation shadows for hierarchy, responsive animations — follow for any new components/pages.
+- **Visual style:** Corporate Modern / "Quiet Premium" per `DESIGN.md` and `GEMINI.md`. Use Inter, soft shadows (4–6% opacity), rounded cards (`rounded-lg`/`rounded-xl`). **Do not** use classic Material Design or paper textures.
+- Palette: Emerald primary (`#10B981`), Indigo secondary (`#6366F1`), Amber tertiary (`#F97316`), Slate neutrals.
 - Icons: `lucide-react`. Motion: `framer-motion`. Forms: `react-hook-form` + `zod`.
+
+## Cursor rules
+Scoped agent rules live in `.cursor/rules/`:
+- `ui-design.mdc` — always applies (PT-BR UI + visual style)
+- `pages-routing.mdc` — when editing `src/pages/**`
+- `server-api.mdc` — when editing `server.js`
 
