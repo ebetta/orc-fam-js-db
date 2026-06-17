@@ -2,6 +2,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   BarChart,
   Bar,
@@ -13,10 +17,12 @@ import {
   Cell,
 } from 'recharts';
 import { Skeleton } from "@/components/ui/skeleton";
-import { ShoppingCart, CalendarDays } from 'lucide-react';
+import { ShoppingCart, CalendarDays, Filter, ChevronsUpDown } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { convertCurrency } from "@/components/utils/CurrencyConverter";
+
+const LOCAL_STORAGE_KEY = 'financeApp_selectedParentTags';
 
 const formatCurrencyForAxis = (value) => {
   if (value === 0) return 'R$0';
@@ -45,8 +51,18 @@ const CustomTooltipContent = ({ active, payload, label }) => {
   return null;
 };
 
-export default function MonthlyExpensesChart({ transactions, isLoading, accounts }) {
-  const [period, setPeriod] = useState('6');
+function shouldIncludeTransaction(transaction, tagMap, selectedParentTags) {
+  const tagId = transaction.tag_id;
+  if (!tagId || !tagMap[tagId]) return true;
+  const tag = tagMap[tagId];
+  const parentTagId = tag.parent_tag_id || tag.id;
+  return !!selectedParentTags[parentTagId];
+}
+
+export default function MonthlyExpensesChart({ transactions, tags, isLoading, accounts }) {
+  const [period, setPeriod] = useState('12');
+  const [selectedParentTags, setSelectedParentTags] = useState({});
+  const [parentTagsFilterOpen, setParentTagsFilterOpen] = useState(false);
   const [chartData, setChartData] = useState([]);
 
   const accountCurrencyMap = useMemo(
@@ -60,6 +76,55 @@ export default function MonthlyExpensesChart({ transactions, isLoading, accounts
   ];
 
   useEffect(() => {
+    if (tags && tags.length > 0) {
+      const savedSelectionJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
+      let initialSelection;
+
+      if (savedSelectionJSON) {
+        try {
+          initialSelection = JSON.parse(savedSelectionJSON);
+        } catch (e) {
+          console.error("Erro ao ler seleção de tags do localStorage, redefinindo para o padrão.", e);
+        }
+      }
+
+      if (!initialSelection) {
+        const parentTags = tags.filter(tag => !tag.parent_tag_id);
+        initialSelection = {};
+        parentTags.forEach(tag => {
+          initialSelection[tag.id] = true;
+        });
+      }
+
+      setSelectedParentTags(initialSelection);
+    }
+  }, [tags]);
+
+  useEffect(() => {
+    if (Object.keys(selectedParentTags).length > 0) {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(selectedParentTags));
+    }
+  }, [selectedParentTags]);
+
+  const parentTags = tags ? tags.filter(tag => !tag.parent_tag_id).sort((a, b) => a.name.localeCompare(b.name)) : [];
+  const selectedCount = Object.values(selectedParentTags).filter(Boolean).length;
+
+  const handleParentTagToggle = (tagId, checked) => {
+    setSelectedParentTags(prev => ({
+      ...prev,
+      [tagId]: checked
+    }));
+  };
+
+  const handleSelectAllParentTags = (selectAll) => {
+    const newSelection = {};
+    parentTags.forEach(tag => {
+      newSelection[tag.id] = selectAll;
+    });
+    setSelectedParentTags(newSelection);
+  };
+
+  useEffect(() => {
     let cancelled = false;
     const computeChartData = async () => {
       if (isLoading || !transactions?.length) {
@@ -67,6 +132,7 @@ export default function MonthlyExpensesChart({ transactions, isLoading, accounts
         return;
       }
 
+      const tagMap = tags?.length ? Object.fromEntries(tags.map(tag => [tag.id, tag])) : {};
       const numberOfMonths = parseInt(period);
       const today = new Date();
       const data = [];
@@ -82,6 +148,7 @@ export default function MonthlyExpensesChart({ transactions, isLoading, accounts
         for (const t of transactions) {
           if (cancelled) return;
           if (t.transaction_type !== 'expense') continue;
+          if (Object.keys(selectedParentTags).length > 0 && !shouldIncludeTransaction(t, tagMap, selectedParentTags)) continue;
           try {
             const txDate = parseISO(t.transaction_date);
             if (!isWithinInterval(txDate, { start: monthStart, end: monthEnd })) continue;
@@ -111,9 +178,8 @@ export default function MonthlyExpensesChart({ transactions, isLoading, accounts
 
     computeChartData();
     return () => { cancelled = true; };
-  }, [transactions, period, isLoading, accountCurrencyMap]);
+  }, [transactions, tags, period, isLoading, accountCurrencyMap, selectedParentTags]);
 
-  // Highlight the current (last) month bar
   const maxValue = Math.max(...chartData.map((d) => d.despesas), 0);
 
   return (
@@ -123,18 +189,78 @@ export default function MonthlyExpensesChart({ transactions, isLoading, accounts
           <ShoppingCart className="w-5 h-5 text-error" />
           Despesas Mensais
         </CardTitle>
-        <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-[180px] h-9 text-xs">
-            <SelectValue placeholder="Selecione o período" />
-          </SelectTrigger>
-          <SelectContent>
-            {timePeriods.map((tp) => (
-              <SelectItem key={tp.value} value={tp.value} className="text-xs">
-                {tp.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Popover open={parentTagsFilterOpen} onOpenChange={setParentTagsFilterOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 text-xs gap-2"
+              >
+                <Filter className="w-4 h-4" />
+                Tags ({selectedCount})
+                <ChevronsUpDown className="w-3 h-3" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0">
+              <div className="p-3 border-b">
+                <div className="flex justify-between">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSelectAllParentTags(true)}
+                    className="h-8 px-2 text-xs"
+                  >
+                    Todas
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSelectAllParentTags(false)}
+                    className="h-8 px-2 text-xs"
+                  >
+                    Nenhuma
+                  </Button>
+                </div>
+              </div>
+              <ScrollArea className="h-48">
+                <div className="p-3 space-y-2">
+                  {parentTags.map(tag => (
+                    <div key={tag.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`monthly-parent-tag-${tag.id}`}
+                        checked={!!selectedParentTags[tag.id]}
+                        onCheckedChange={(checked) => handleParentTagToggle(tag.id, checked)}
+                      />
+                      <label
+                        htmlFor={`monthly-parent-tag-${tag.id}`}
+                        className="flex items-center gap-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: tag.color || '#ccc' }}
+                        />
+                        {tag.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-[180px] h-9 text-xs">
+              <SelectValue placeholder="Selecione o período" />
+            </SelectTrigger>
+            <SelectContent>
+              {timePeriods.map((tp) => (
+                <SelectItem key={tp.value} value={tp.value} className="text-xs">
+                  {tp.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
 
       <CardContent className="p-4 flex-grow">
@@ -170,9 +296,9 @@ export default function MonthlyExpensesChart({ transactions, isLoading, accounts
                 {chartData.map((entry, index) => {
                   const isLastMonth = index === chartData.length - 1;
                   const isHighest = entry.despesas === maxValue && maxValue > 0;
-                  let color = '#fca5a5'; // light red default
-                  if (isLastMonth) color = '#ef4444'; // current month
-                  else if (isHighest) color = '#dc2626'; // highest month
+                  let color = '#fca5a5';
+                  if (isLastMonth) color = '#ef4444';
+                  else if (isHighest) color = '#dc2626';
                   return <Cell key={`cell-${index}`} fill={color} />;
                 })}
               </Bar>
@@ -183,7 +309,7 @@ export default function MonthlyExpensesChart({ transactions, isLoading, accounts
             <CalendarDays className="w-12 h-12 text-gray-300 mb-3" />
             <h3 className="text-md font-medium text-gray-700">Sem despesas no período</h3>
             <p className="text-xs text-gray-500">
-              Adicione transações de despesa para visualizar o gráfico.
+              Adicione transações de despesa ou selecione categorias no filtro de tags.
             </p>
           </div>
         )}

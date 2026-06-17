@@ -133,7 +133,7 @@ export default function Dashboard() {
               className="grid grid-cols-1 lg:grid-cols-2 gap-6"
             >
               <ExpensesChart transactions={allTransactions} tags={tags} isLoading={isLoading} accounts={accounts} />
-              <MonthlyExpensesChart transactions={allTransactions} isLoading={isLoading} accounts={accounts} />
+              <MonthlyExpensesChart transactions={allTransactions} tags={tags} isLoading={isLoading} accounts={accounts} />
             </motion.div>
           </div>
 
