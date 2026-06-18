@@ -72,7 +72,7 @@ const fmtCurrency = (value, currency = "BRL") => {
 function HeroCard({ totalNetWorth, isLoading, activeCount, inactiveCount }) {
   return (
     <div className="relative overflow-hidden p-8 rounded-2xl text-white shadow-lg"
-      style={{ background: "linear-gradient(135deg, #4648d4 0%, #6063ee 60%, #8b5cf6 100%)" }}>
+      style={{ background: "linear-gradient(135deg, #0284c7 0%, #0ea5e9 60%, #38bdf8 100%)" }}>
       <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full -ml-10 -mb-10 blur-2xl pointer-events-none" />
 

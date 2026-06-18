@@ -140,7 +140,7 @@ export default function ReportFilters({ allTags, filters, onFiltersChange, onGen
                                 </RadioGroup>
                             </div>
                             
-                            <Button onClick={onGenerateReport} className="w-full bg-[#006c49] hover:bg-[#005236] text-white h-10">
+                            <Button onClick={onGenerateReport} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white h-10">
                                 <BarChart className="w-4 h-4 mr-2"/>
                                 Gerar Relatório
                             </Button>

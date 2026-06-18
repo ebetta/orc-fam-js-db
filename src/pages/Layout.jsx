@@ -170,10 +170,22 @@ export default function Layout({ children }) {
                       const isActive = isNavItemActive(item.url);
                       const isBudgets = item.title === "Orçamentos";
                       const isDashboard = item.title === "Dashboard";
+                      const isAccounts = item.title === "Contas";
+                      const isTags = item.title === "Categorias";
+                      const isImport = item.title === "Importar";
+                      const isReports = item.title === "Relatórios";
                       const activeBg = isBudgets
                         ? "bg-[#F97316] text-white hover:bg-[#e2620b] hover:text-white"
                         : isDashboard
                         ? "bg-emerald-500 text-white hover:bg-emerald-600 hover:text-white"
+                        : isAccounts
+                        ? "bg-sky-600 text-white hover:bg-sky-700 hover:text-white"
+                        : isTags
+                        ? "bg-purple-600 text-white hover:bg-purple-700 hover:text-white"
+                        : isImport
+                        ? "bg-teal-600 text-white hover:bg-teal-700 hover:text-white"
+                        : isReports
+                        ? "bg-cyan-600 text-white hover:bg-cyan-700 hover:text-white"
                         : "bg-secondary text-on-secondary hover:bg-secondary hover:text-on-secondary";
                       return (
                         <SidebarMenuItem key={item.title}>
@@ -210,7 +222,7 @@ export default function Layout({ children }) {
                 <button
                   type="button"
                   onClick={() => sidebarActions.triggerNewAccount()}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 font-label-md text-label-md text-white bg-secondary rounded-xl shadow-md hover:opacity-90 active:scale-[0.98] transition-all"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 font-label-md text-label-md text-white bg-sky-600 rounded-xl shadow-md hover:bg-sky-700 active:scale-[0.98] transition-all"
                 >
                   <Plus className="w-4 h-4" />
                   Nova Conta
@@ -223,7 +235,7 @@ export default function Layout({ children }) {
                 <button
                   type="button"
                   onClick={() => sidebarActions.triggerNewTag()}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 font-label-md text-label-md text-white bg-secondary rounded-xl shadow-md hover:opacity-90 active:scale-[0.98] transition-all"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 font-label-md text-label-md text-white bg-purple-600 rounded-xl shadow-md hover:bg-purple-700 active:scale-[0.98] transition-all"
                 >
                   <Plus className="w-4 h-4" />
                   Nova Categoria
