@@ -1,9 +1,4 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
-import { motion } from "framer-motion";
 
 const fmtCurrency = (value) => {
   if (value === null || value === undefined || isNaN(value)) return "—";
@@ -35,21 +30,6 @@ export default function WelcomeCard({ netWorth, isLoading }) {
             )}
           </div>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
-            <Link to={createPageUrl("Transactions")}>
-              <Button
-                size="lg"
-                className="bg-white text-primary-v2 hover:bg-green-50 shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105"
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                Nova Transação
-              </Button>
-            </Link>
-          </motion.div>
         </div>
       </CardContent>
     </Card>

@@ -173,6 +173,14 @@ button:focus-visible {
   --v2-surface-container-low: #eff4ff;
   --v2-surface-container-high: #dce9ff;
   --v2-on-background: #0b1c30;
+  --v2-background: #f8f9ff;
+}
+
+.v2-theme .bg-background {
+  background-color: var(--v2-background) !important;
+}
+.v2-theme .bg-surface-container-low {
+  background-color: var(--v2-surface-container-low) !important;
 }
 
 .v2-theme .text-secondary {
@@ -198,9 +206,6 @@ button:focus-visible {
 }
 .v2-theme .bg-surface-container-lowest {
   background-color: var(--v2-surface-container-lowest) !important;
-}
-.v2-theme .bg-surface-container-low {
-  background-color: var(--v2-surface-container-low) !important;
 }
 .v2-theme .bg-surface-container-high {
   background-color: var(--v2-surface-container-high) !important;

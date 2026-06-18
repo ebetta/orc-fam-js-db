@@ -1,7 +1,6 @@
 
-
-import React, { createContext, useContext } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom"; // Added useNavigate
+import React, { createContext, useContext, useMemo, useRef, useCallback } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import {
   Home,
@@ -11,14 +10,14 @@ import {
   BarChart,
   LogOut,
   Upload,
-  Receipt
+  Receipt,
+  Plus,
 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -32,75 +31,86 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { auth } from "@/lib/api";
 
 const UserContext = createContext(null);
+const SidebarActionsContext = createContext(null);
 
 export const useUser = () => useContext(UserContext);
 
+export const useSidebarActions = () => useContext(SidebarActionsContext);
+
+const TRANSACTIONS_URL = createPageUrl("TransactionsV2");
+const BUDGETS_URL = createPageUrl("Budgets");
+const ACCOUNTS_URL = createPageUrl("Accounts");
+const TAGS_URL = createPageUrl("Tags");
+
 const navigationItems = [
-  {
-    title: "Dashboard",
-    url: createPageUrl("Dashboard"),
-    icon: Home,
-    color: "text-green-600",
-    bgColor: "bg-green-50"
-  },
-  {
-    title: "Contas",
-    url: createPageUrl("Accounts"),
-    icon: CreditCard,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50"
-  },
-  {
-    title: "Categorias",
-    url: createPageUrl("Tags"),
-    icon: Tag,
-    color: "text-purple-600",
-    bgColor: "bg-purple-50"
-  },
-  {
-    title: "Orçamentos",
-    url: createPageUrl("Budgets"),
-    icon: Target,
-    color: "text-orange-600",
-    bgColor: "bg-orange-50"
-  },
-  {
-    title: "Transações",
-    url: createPageUrl("TransactionsV2"),
-    icon: Receipt,
-    color: "text-violet-600",
-    bgColor: "bg-violet-50"
-  },
-  {
-    title: "Importar",
-    url: createPageUrl("Import"),
-    icon: Upload,
-    color: "text-cyan-600",
-    bgColor: "bg-cyan-50"
-  },
-  {
-    title: "Relatórios",
-    url: createPageUrl("Reports"),
-    icon: BarChart,
-    color: "text-teal-600",
-    bgColor: "bg-teal-50"
-  }
+  { title: "Dashboard", url: createPageUrl("Dashboard"), icon: Home },
+  { title: "Contas", url: createPageUrl("Accounts"), icon: CreditCard },
+  { title: "Categorias", url: createPageUrl("Tags"), icon: Tag },
+  { title: "Orçamentos", url: createPageUrl("Budgets"), icon: Target },
+  { title: "Transações", url: TRANSACTIONS_URL, icon: Receipt },
+  { title: "Importar", url: createPageUrl("Import"), icon: Upload },
+  { title: "Relatórios", url: createPageUrl("Reports"), icon: BarChart },
 ];
 
-export default function Layout({ children, currentPageName }) {
+function normalizePath(path) {
+  return path.toLowerCase().replace(/\/$/, "");
+}
+
+export default function Layout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = React.useState(null);
-  // Loading state for initial user fetch can be removed if ProtectedRoute handles pre-loading checks
-  // const [loading, setLoading] = React.useState(true);
+  const newTransactionHandlerRef = useRef(null);
+  const newBudgetHandlerRef = useRef(null);
+  const newAccountHandlerRef = useRef(null);
+  const newTagHandlerRef = useRef(null);
+
+  const sidebarActions = useMemo(
+    () => ({
+      registerNewTransactionHandler: (handler) => {
+        newTransactionHandlerRef.current = handler;
+      },
+      unregisterNewTransactionHandler: () => {
+        newTransactionHandlerRef.current = null;
+      },
+      triggerNewTransaction: () => {
+        newTransactionHandlerRef.current?.();
+      },
+      registerNewBudgetHandler: (handler) => {
+        newBudgetHandlerRef.current = handler;
+      },
+      unregisterNewBudgetHandler: () => {
+        newBudgetHandlerRef.current = null;
+      },
+      triggerNewBudget: () => {
+        newBudgetHandlerRef.current?.();
+      },
+      registerNewAccountHandler: (handler) => {
+        newAccountHandlerRef.current = handler;
+      },
+      unregisterNewAccountHandler: () => {
+        newAccountHandlerRef.current = null;
+      },
+      triggerNewAccount: () => {
+        newAccountHandlerRef.current?.();
+      },
+      registerNewTagHandler: (handler) => {
+        newTagHandlerRef.current = handler;
+      },
+      unregisterNewTagHandler: () => {
+        newTagHandlerRef.current = null;
+      },
+      triggerNewTag: () => {
+        newTagHandlerRef.current?.();
+      },
+    }),
+    []
+  );
 
   React.useEffect(() => {
     const fetchUserAndListen = async () => {
-      // Initial fetch
       const { data: { user: initialUser } } = await auth.getUser();
       setUser(initialUser);
-      // setLoading(false); // setLoading can be removed
-
     };
 
     fetchUserAndListen();
@@ -115,124 +125,190 @@ export default function Layout({ children, currentPageName }) {
     navigate("/login");
   };
 
-  // If there's no user object, it might mean auth state is still loading or user is logged out.
-  // ProtectedRoute should prevent this component from rendering if not authenticated.
-  // However, a brief null state for user might occur before the first onAuthStateChange sets it.
-  // For a cleaner UI, we could show a loader if user is null, but this might flash.
-  // Given ProtectedRoute, user should ideally always be populated here.
-  // if (!user) {
-  //   return <div className="flex items-center justify-center min-h-screen">Carregando usuário...</div>;
-  // }
+  const isTransactionsPage =
+    normalizePath(location.pathname) === normalizePath(TRANSACTIONS_URL);
+  const isBudgetsPage =
+    normalizePath(location.pathname) === normalizePath(BUDGETS_URL);
+  const isAccountsPage =
+    normalizePath(location.pathname) === normalizePath(ACCOUNTS_URL);
+  const isTagsPage =
+    normalizePath(location.pathname) === normalizePath(TAGS_URL);
+
+  const isNavItemActive = useCallback(
+    (itemUrl) => normalizePath(location.pathname) === normalizePath(itemUrl),
+    [location.pathname]
+  );
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gray-50">
-        <style jsx>{`
-          :root {
-            --primary-green: #1B5E20;
-            --primary-blue: #1565C0;
-            --accent-color: #4CAF50;
-            --text-primary: #212121;
-            --text-secondary: #757575;
-            --surface: #FFFFFF;
-            --background: #FAFAFA;
-          }
-        `}</style>
-
-        <Sidebar className="border-r-0 shadow-md bg-white">
-          <SidebarHeader className="border-b border-gray-100 p-4">
-            <div className="flex flex-col items-center text-center">
-              <img src="/src/assets/ico-orc-fam.png" alt="Orçamento Familiar" className="w-24 h-24" />
-              <div className="-mt-2">
-                <h2 className="font-bold text-lg text-[#2775bd]">Orçamento Familiar</h2>
-                <p className="text-sm text-gray-500">Controle Financeiro</p>
-              </div>
-            </div>
-          </SidebarHeader>
-
-          <SidebarContent className="p-4">
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">
-                Menu Principal
-              </SidebarGroupLabel>
-              <SidebarGroupContent className="space-y-1">
-                <SidebarMenu>
-                  {navigationItems.map((item) => {
-                    const isActive = location.pathname === item.url;
-                    return (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton
-                          asChild
-                          className={`
-                            h-12 rounded-xl transition-all duration-300 hover:scale-[1.02] 
-                            ${isActive
-                              ? `${item.bgColor} ${item.color} shadow-md border border-opacity-20`
-                              : 'hover:bg-gray-50 text-gray-700'
-                            }
-                          `}
-                        >
-                          <Link to={item.url} className="flex items-center gap-4 px-4 py-3">
-                            <div className={`p-2 rounded-lg ${isActive ? 'bg-white bg-opacity-80' : 'bg-gray-100'}`}>
-                              <item.icon className={`w-5 h-5 ${isActive ? item.color : 'text-gray-600'}`} />
-                            </div>
-                            <span className="font-medium">{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </SidebarContent>
-
-          <SidebarFooter className="border-t border-gray-100 p-4">
-            {user && ( // Use logical AND to render only if user exists
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-green-100 text-green-700 font-semibold">
-                      {user.user_metadata?.full_name?.charAt(0) || user.email?.charAt(0).toUpperCase() || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 text-sm truncate">
-                      {user.user_metadata?.full_name || user.email || 'Usuário'}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
-                  </div>
+    <SidebarActionsContext.Provider value={sidebarActions}>
+      <SidebarProvider>
+        <div className="v2-theme min-h-screen flex w-full bg-background font-body-md text-body-md text-on-background">
+          <Sidebar className="border-r border-outline-variant bg-surface-container-low shadow-sm">
+            <SidebarHeader className="border-b border-outline-variant p-5">
+              <div className="flex flex-col items-center text-center">
+                <img
+                  src="/src/assets/ico-orc-fam.png"
+                  alt="Orçamento Familiar"
+                  className="w-24 h-24"
+                />
+                <div className="-mt-2">
+                  <h2 className="font-headline-sm text-headline-sm text-secondary">
+                    Orçamento Familiar
+                  </h2>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+                    Controle Financeiro
+                  </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleLogout}
-                  className="text-gray-500 hover:text-red-600 hover:bg-red-50"
+              </div>
+            </SidebarHeader>
+
+            <SidebarContent className="px-3 py-4">
+              <SidebarGroup className="p-0">
+                <SidebarGroupContent>
+                  <SidebarMenu className="space-y-1">
+                    {navigationItems.map((item) => {
+                      const isActive = isNavItemActive(item.url);
+                      const isBudgets = item.title === "Orçamentos";
+                      const isDashboard = item.title === "Dashboard";
+                      const activeBg = isBudgets
+                        ? "bg-[#F97316] text-white hover:bg-[#e2620b] hover:text-white"
+                        : isDashboard
+                        ? "bg-emerald-500 text-white hover:bg-emerald-600 hover:text-white"
+                        : "bg-secondary text-on-secondary hover:bg-secondary hover:text-on-secondary";
+                      return (
+                        <SidebarMenuItem key={item.title}>
+                          <SidebarMenuButton
+                            asChild
+                            className={`
+                              h-11 rounded-lg transition-colors duration-200 shadow-sm
+                              ${isActive
+                                ? activeBg
+                                : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-background"
+                              }
+                            `}
+                          >
+                            <Link
+                              to={item.url}
+                              className="flex items-center gap-3 px-3 py-2.5 font-body-sm text-body-sm"
+                            >
+                              <item.icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? "text-current" : ""}`} />
+                              <span className={isActive ? "font-semibold" : "font-medium"}>
+                                {item.title}
+                              </span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </SidebarContent>
+
+            {isAccountsPage && (
+              <div className="px-3 pb-2">
+                <button
+                  type="button"
+                  onClick={() => sidebarActions.triggerNewAccount()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 font-label-md text-label-md text-white bg-secondary rounded-xl shadow-md hover:opacity-90 active:scale-[0.98] transition-all"
                 >
-                  <LogOut className="w-4 h-4" />
-                </Button>
+                  <Plus className="w-4 h-4" />
+                  Nova Conta
+                </button>
               </div>
             )}
-          </SidebarFooter>
-        </Sidebar>
 
-        <main className="flex-1 flex flex-col overflow-hidden">
-          <header className="bg-white border-b border-gray-100 px-6 py-4 md:hidden shadow-sm">
-            <div className="flex items-center gap-4">
-              <SidebarTrigger className="hover:bg-gray-100 p-2 rounded-lg transition-colors duration-200" />
-              <h1 className="text-xl font-bold text-gray-900">Orçamento Familiar</h1>
-            </div>
-          </header>
+            {isTagsPage && (
+              <div className="px-3 pb-2">
+                <button
+                  type="button"
+                  onClick={() => sidebarActions.triggerNewTag()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 font-label-md text-label-md text-white bg-secondary rounded-xl shadow-md hover:opacity-90 active:scale-[0.98] transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nova Categoria
+                </button>
+              </div>
+            )}
 
-          <div className="flex-1 overflow-auto bg-gray-50">
-            <div className="min-h-full">
-              <UserContext.Provider value={user}>
-                {children}
-              </UserContext.Provider>
+            {isTransactionsPage && (
+              <div className="px-3 pb-2">
+                <button
+                  type="button"
+                  onClick={() => sidebarActions.triggerNewTransaction()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 font-label-md text-label-md text-white bg-secondary rounded-xl shadow-md hover:opacity-90 active:scale-[0.98] transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nova Transação
+                </button>
+              </div>
+            )}
+
+            {isBudgetsPage && (
+              <div className="px-3 pb-2">
+                <button
+                  type="button"
+                  onClick={() => sidebarActions.triggerNewBudget()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 font-label-md text-label-md text-white bg-[#F97316] rounded-xl shadow-md hover:bg-[#e2620b] active:scale-[0.98] transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Novo Orçamento
+                </button>
+              </div>
+            )}
+
+            <SidebarFooter className="border-t border-outline-variant p-4 mt-auto">
+              {user && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar className="h-10 w-10 shrink-0">
+                      <AvatarFallback className="bg-primary-v2/10 text-primary-v2 font-semibold font-body-sm">
+                        {user.user_metadata?.full_name?.charAt(0) ||
+                          user.email?.charAt(0).toUpperCase() ||
+                          "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold font-body-sm text-body-sm text-on-background truncate">
+                        {user.user_metadata?.full_name || user.email || "Usuário"}
+                      </p>
+                      <p className="font-body-sm text-body-sm text-on-surface-variant truncate">
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleLogout}
+                    className="shrink-0 text-on-surface-variant hover:text-error hover:bg-error/10"
+                    aria-label="Sair"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </SidebarFooter>
+          </Sidebar>
+
+          <main className="flex-1 flex flex-col overflow-hidden">
+            <header className="bg-surface-container-lowest border-b border-outline-variant px-6 py-4 md:hidden shadow-sm">
+              <div className="flex items-center gap-4">
+                <SidebarTrigger className="hover:bg-surface-container-high p-2 rounded-lg transition-colors duration-200" />
+                <h1 className="font-headline-sm text-headline-sm text-secondary">
+                  Orçamento Familiar
+                </h1>
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-auto bg-background">
+              <div className="min-h-full">
+                <UserContext.Provider value={user}>{children}</UserContext.Provider>
+              </div>
             </div>
-          </div>
-        </main>
-      </div>
-    </SidebarProvider>
+          </main>
+        </div>
+      </SidebarProvider>
+    </SidebarActionsContext.Provider>
   );
 }
-

@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { api, auth } from "@/lib/api";
+import { useSidebarActions } from "./Layout";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -11,7 +12,7 @@ import {
 } from "date-fns";
 
 
-import { BudgetsPageHeader, BudgetsHeroCard, BudgetsFiltersBar } from "../components/budgets/BudgetsHeader";
+import { BudgetsHeroCard, BudgetsFiltersBar } from "../components/budgets/BudgetsHeader";
 import BudgetForm from "../components/budgets/BudgetForm";
 import BudgetsList from "../components/budgets/BudgetsList";
 
@@ -46,6 +47,8 @@ export default function BudgetsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingBudget, setEditingBudget] = useState(null);
   const { toast } = useToast();
+  const { registerNewBudgetHandler, unregisterNewBudgetHandler } = useSidebarActions();
+  const openNewBudgetRef = useRef(null);
 
   const [filters, setFilters] = useState({
     period: "current_month",
@@ -127,6 +130,16 @@ export default function BudgetsPage() {
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
+
+  openNewBudgetRef.current = () => {
+    setEditingBudget(null);
+    setShowForm(true);
+  };
+
+  useEffect(() => {
+    registerNewBudgetHandler(() => openNewBudgetRef.current?.());
+    return () => unregisterNewBudgetHandler();
+  }, [registerNewBudgetHandler, unregisterNewBudgetHandler]);
 
   // Efeito principal para filtrar e agrupar orçamentos baseado no período selecionado
   useEffect(() => {
@@ -393,11 +406,6 @@ export default function BudgetsPage() {
   return (
     <div className="v2-theme font-body-md text-body-md text-on-background bg-background min-h-screen">
       <div className="p-6 lg:p-10 space-y-8">
-
-        {/* ── Page Header ── */}
-        <BudgetsPageHeader
-          onAddBudget={() => { setEditingBudget(null); setShowForm(true); }}
-        />
 
         {/* ── Hero Card ── */}
         <BudgetsHeroCard

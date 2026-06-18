@@ -1,6 +1,7 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api, auth } from "@/lib/api";
+import { useSidebarActions } from "./Layout";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -8,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import TagForm from "../components/tags/TagForm";
 import TagsList from "../components/tags/TagsList";
 
-import { Plus, Tag, ChevronDown, ChevronUp } from "lucide-react";
+import { Tag, ChevronDown, ChevronUp } from "lucide-react";
 
-function TagsHeroCard({ tagsCount, onAddTag, onExpandAll, onCollapseAll }) {
+function TagsHeroCard({ tagsCount, onExpandAll, onCollapseAll }) {
   return (
     <div
       className="relative overflow-hidden p-8 rounded-2xl text-white shadow-lg"
@@ -51,13 +52,6 @@ function TagsHeroCard({ tagsCount, onAddTag, onExpandAll, onCollapseAll }) {
             <ChevronUp className="w-4 h-4" />
             Colapsar
           </Button>
-          <Button
-            onClick={onAddTag}
-            className="bg-white text-indigo-700 hover:bg-indigo-50 shadow-lg hover:shadow-xl transition-all hover:scale-105"
-          >
-            <Plus className="w-4 h-4" />
-            Nova Categoria
-          </Button>
         </div>
       </div>
     </div>
@@ -71,10 +65,22 @@ export default function TagsPage() {
   const [editingTag, setEditingTag] = useState(null);
   const [expandedTags, setExpandedTags] = useState(new Set());
   const { toast } = useToast();
+  const { registerNewTagHandler, unregisterNewTagHandler } = useSidebarActions();
+  const openNewTagRef = useRef(null);
 
   useEffect(() => {
     loadTags();
   }, []);
+
+  openNewTagRef.current = () => {
+    setEditingTag(null);
+    setShowForm(true);
+  };
+
+  useEffect(() => {
+    registerNewTagHandler(() => openNewTagRef.current?.());
+    return () => unregisterNewTagHandler();
+  }, [registerNewTagHandler, unregisterNewTagHandler]);
 
   useEffect(() => {
     if (tags.length > 0 && expandedTags.size === 0) {
@@ -282,7 +288,6 @@ export default function TagsPage() {
           transition={{ duration: 0.4 }}
         >
           <TagsHeroCard
-            onAddTag={() => { setEditingTag(null); setShowForm(true); }}
             tagsCount={tags.length}
             onExpandAll={handleExpandAll}
             onCollapseAll={handleCollapseAll}

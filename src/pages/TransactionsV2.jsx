@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, auth } from "@/lib/api";
+import { useSidebarActions } from "./Layout";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { startOfDay, endOfDay, parseISO, format, startOfMonth, endOfMonth, subMonths } from "date-fns";
@@ -18,7 +19,6 @@ import { Button } from "@/components/ui/button";
 
 import {
   Search,
-  Plus,
   ChevronLeft,
   ChevronRight,
   TrendingUp,
@@ -786,6 +786,8 @@ export default function TransactionsV2Page() {
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const { toast } = useToast();
+  const { registerNewTransactionHandler, unregisterNewTransactionHandler } = useSidebarActions();
+  const openNewTransactionRef = useRef(null);
   const [searchParams] = useSearchParams();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
@@ -856,6 +858,17 @@ export default function TransactionsV2Page() {
 
   useEffect(() => { loadInitialData(); }, [loadInitialData]);
   useEffect(() => { setCurrentPage(1); }, [filters]);
+
+  openNewTransactionRef.current = () => {
+    const template = filters.accountId !== "all" ? { account_id: filters.accountId } : null;
+    setEditingTransaction(template);
+    setShowForm(true);
+  };
+
+  useEffect(() => {
+    registerNewTransactionHandler(() => openNewTransactionRef.current?.());
+    return () => unregisterNewTransactionHandler();
+  }, [registerNewTransactionHandler, unregisterNewTransactionHandler]);
 
   // CRUD handlers
   const handleFormSubmit = async (transactionData) => {
@@ -1037,31 +1050,6 @@ export default function TransactionsV2Page() {
   return (
     <div className="v2-theme font-body-md text-body-md text-on-background bg-background min-h-screen">
       <div className="p-6 lg:p-10 space-y-8">
-
-        {/* ── Page Header ── */}
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="flex flex-col md:flex-row md:items-center justify-between gap-4"
-        >
-          <div>
-            <h2 className="font-headline-lg text-headline-lg text-secondary">Transações</h2>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                const template = filters.accountId !== "all" ? { account_id: filters.accountId } : null;
-                setEditingTransaction(template);
-                setShowForm(true);
-              }}
-              className="flex items-center gap-2 px-5 py-2.5 font-label-md text-label-md text-on-secondary bg-secondary rounded-xl shadow-md hover:opacity-90 active:scale-95 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Nova Transação
-            </button>
-          </div>
-        </motion.div>
 
         {/* ── Hero Balance Card ── */}
         <motion.div

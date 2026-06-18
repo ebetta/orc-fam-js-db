@@ -1,7 +1,7 @@
 
 import React from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, TrendingUp, TrendingDown, DollarSign, X } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, X } from "lucide-react";
 import { motion } from "framer-motion";
 
 const formatCurrency = (amount) => {
@@ -12,26 +12,14 @@ const formatCurrency = (amount) => {
 };
 
 /* ── Page Header ─────────────────────────────────────────────────────────── */
-export function BudgetsPageHeader({ onAddBudget }) {
+export function BudgetsPageHeader() {
   return (
     <motion.div
       initial={{ opacity: 0, y: -16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="flex flex-col md:flex-row md:items-center justify-between gap-4"
     >
-      <div>
-        <h2 className="font-headline-lg text-headline-lg text-[#F97316]">Orçamentos</h2>
-      </div>
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onAddBudget}
-          className="flex items-center gap-2 px-5 py-2.5 font-label-md text-label-md text-white bg-[#F97316] hover:bg-[#e2620b] rounded-xl shadow-md active:scale-95 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Orçamento
-        </button>
-      </div>
+      <h2 className="font-headline-lg text-headline-lg text-[#F97316]">Orçamentos</h2>
     </motion.div>
   );
 }
@@ -188,7 +176,7 @@ export function BudgetsFiltersBar({ filters, onFiltersChange, tags, budgetsCount
 export default function BudgetsHeader(props) {
   return (
     <>
-      <BudgetsPageHeader onAddBudget={props.onAddBudget} />
+      <BudgetsPageHeader />
       <BudgetsHeroCard summaryTotals={props.summaryTotals} isLoading={false} />
       <BudgetsFiltersBar
         filters={props.filters}

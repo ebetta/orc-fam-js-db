@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { api, auth } from "@/lib/api";
+import { useSidebarActions } from "./Layout";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { convertCurrency } from "../components/utils/CurrencyConverter";
@@ -7,7 +8,6 @@ import AccountForm from "../components/accounts/AccountForm";
 import { Switch } from "@/components/ui/switch";
 
 import {
-  Plus,
   Pencil,
   Trash2,
   Search,
@@ -270,6 +270,8 @@ export default function Accounts() {
   const [totalNetWorth, setTotalNetWorth] = useState(0);
   const [isCalculating, setIsCalculating] = useState(true);
   const { toast } = useToast();
+  const { registerNewAccountHandler, unregisterNewAccountHandler } = useSidebarActions();
+  const openNewAccountRef = useRef(null);
 
   const loadAccounts = useCallback(async () => {
     setIsLoading(true);
@@ -285,6 +287,16 @@ export default function Accounts() {
   }, [toast]);
 
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
+
+  openNewAccountRef.current = () => {
+    setEditingAccount(null);
+    setShowForm(true);
+  };
+
+  useEffect(() => {
+    registerNewAccountHandler(() => openNewAccountRef.current?.());
+    return () => unregisterNewAccountHandler();
+  }, [registerNewAccountHandler, unregisterNewAccountHandler]);
 
   // Calculate BRL balances and total net worth
   useEffect(() => {
@@ -389,27 +401,6 @@ export default function Accounts() {
   return (
     <div className="v2-theme font-body-md text-body-md text-on-background bg-background min-h-screen">
       <div className="p-6 lg:p-10 space-y-8">
-
-        {/* ── Page Header ── */}
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="flex flex-col md:flex-row md:items-center justify-between gap-4"
-        >
-          <div>
-            <h2 className="font-headline-lg text-headline-lg text-secondary">Contas</h2>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => { setEditingAccount(null); setShowForm(true); }}
-              className="flex items-center gap-2 px-5 py-2.5 font-label-md text-label-md text-on-secondary bg-secondary rounded-xl shadow-md hover:opacity-90 active:scale-95 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Nova Conta
-            </button>
-          </div>
-        </motion.div>
 
         {/* ── Hero Balance Card ── */}
         <motion.div

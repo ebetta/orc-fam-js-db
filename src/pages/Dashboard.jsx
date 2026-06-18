@@ -112,11 +112,6 @@ export default function Dashboard() {
     <div className="v2-theme bg-background min-h-screen">
       <div className="p-6 lg:p-10 space-y-8">
 
-        {/* Page Header */}
-        <motion.div {...stagger} transition={{ duration: 0.4 }}>
-          <h2 className="font-headline-lg text-headline-lg text-green-600">Dashboard</h2>
-        </motion.div>
-
         {/* Welcome Card with Net Worth */}
         <motion.div {...stagger} transition={{ duration: 0.4, delay: 0.05 }}>
           <WelcomeCard netWorth={totalNetWorth} isLoading={isCalculatingNetWorth} />
