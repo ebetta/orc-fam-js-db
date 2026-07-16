@@ -3,13 +3,11 @@
 
 # npm run build (Para builda PRD)
 
+# Para rodar o app
+# npm run dev
+
+# Para rodar o server
+# npm run server
+
 # Agora pra rodar o servidor os 2 juntos
-
 npm run dev:all 
-
-ou 
-
-npm run dev
-e
-npm run server
-
