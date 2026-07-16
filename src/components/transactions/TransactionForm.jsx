@@ -161,7 +161,13 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
               </Label>
               <Select
                 value={formData.transaction_type}
-                onValueChange={(value) => handleInputChange("transaction_type", value)}
+                onValueChange={(value) => {
+                  handleInputChange("transaction_type", value);
+                  if (value === "transfer") {
+                    handleInputChange("tag_id", null);
+                    setTagSearchValue("");
+                  }
+                }}
               >
                 <SelectTrigger className="h-12">
                   <SelectValue />
@@ -279,69 +285,71 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
           </div>
 
 
-          <div className="space-y-2">
-            <Label htmlFor="tag_id" className="text-sm font-medium">
-              Tag (Opcional)
-            </Label>
-            <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={tagPopoverOpen}
-                  className="w-full justify-between h-12 font-normal"
-                >
-                  {selectedTag ? selectedTag._displayPath : "Selecione uma tag..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                <Command>
-                  <CommandInput
-                    placeholder="Buscar tag..."
-                    value={tagSearchValue}
-                    onValueChange={setTagSearchValue}
-                  />
-                  <CommandList>
-                    <CommandEmpty>Nenhuma tag encontrada.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        key="no-tag"
-                        value=""
-                        onSelect={() => {
-                          handleInputChange("tag_id", null);
-                          setTagSearchValue(""); // Limpa busca para exibir o placeholder
-                          setTagPopoverOpen(false);
-                        }}
-                      >
-                        <Check
-                          className={`mr-2 h-4 w-4 ${!formData.tag_id ? "opacity-100" : "opacity-0"}`}
-                        />
-                        Nenhuma tag
-                      </CommandItem>
-                      {filteredTags.map((tag) => (
+          {formData.transaction_type !== "transfer" && (
+            <div className="space-y-2">
+              <Label htmlFor="tag_id" className="text-sm font-medium">
+                Tag (Opcional)
+              </Label>
+              <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={tagPopoverOpen}
+                    className="w-full justify-between h-12 font-normal"
+                  >
+                    {selectedTag ? selectedTag._displayPath : "Selecione uma tag..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command>
+                    <CommandInput
+                      placeholder="Buscar tag..."
+                      value={tagSearchValue}
+                      onValueChange={setTagSearchValue}
+                    />
+                    <CommandList>
+                      <CommandEmpty>Nenhuma tag encontrada.</CommandEmpty>
+                      <CommandGroup>
                         <CommandItem
-                          key={tag.id}
-                          value={tag._displayPath}
-                          onSelect={(currentValue) => {
-                            const selected = leafTagsWithPath.find(t => t._displayPath.toLowerCase() === currentValue.toLowerCase());
-                            handleInputChange("tag_id", selected ? selected.id : null);
-                            setTagSearchValue(selected ? selected._displayPath : "");
+                          key="no-tag"
+                          value=""
+                          onSelect={() => {
+                            handleInputChange("tag_id", null);
+                            setTagSearchValue(""); // Limpa busca para exibir o placeholder
                             setTagPopoverOpen(false);
                           }}
                         >
                           <Check
-                            className={`mr-2 h-4 w-4 ${formData.tag_id === tag.id ? "opacity-100" : "opacity-0"}`}
+                            className={`mr-2 h-4 w-4 ${!formData.tag_id ? "opacity-100" : "opacity-0"}`}
                           />
-                          <span className="text-xs text-outline mr-1 font-mono">{tag._displayPath}</span>
+                          Nenhuma tag
                         </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
+                        {filteredTags.map((tag) => (
+                          <CommandItem
+                            key={tag.id}
+                            value={tag._displayPath}
+                            onSelect={(currentValue) => {
+                              const selected = leafTagsWithPath.find(t => t._displayPath.toLowerCase() === currentValue.toLowerCase());
+                              handleInputChange("tag_id", selected ? selected.id : null);
+                              setTagSearchValue(selected ? selected._displayPath : "");
+                              setTagPopoverOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${formData.tag_id === tag.id ? "opacity-100" : "opacity-0"}`}
+                            />
+                            <span className="text-xs text-outline mr-1 font-mono">{tag._displayPath}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="notes" className="text-sm font-medium">

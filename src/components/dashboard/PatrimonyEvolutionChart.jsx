@@ -117,7 +117,7 @@ export default function PatrimonyEvolutionChart({ patrimonyData, isLoading }) {
   const trend = chartData.some(d => d.projecao != null);
 
   return (
-    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm h-full flex flex-col rounded-2xl">
+    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm h-full flex flex-col rounded-2xl overflow-hidden">
       <CardHeader className="border-b border-outline-variant bg-surface-container-low flex flex-row items-center justify-between py-3">
         <CardTitle className="font-headline-sm text-headline-sm flex items-center gap-2">
           {trend ? (

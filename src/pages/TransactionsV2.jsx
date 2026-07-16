@@ -300,19 +300,7 @@ const typeLabels = {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function HeroCard({ totalNetWorth, isLoading, filteredTransactions, accounts }) {
-  const { income, expense } = useMemo(() => {
-    let inc = 0, exp = 0;
-    for (const t of filteredTransactions) {
-      const amount = parseFloat(t.amount || 0);
-      if (t.transaction_type === "income") inc += amount;
-      else if (t.transaction_type === "expense") exp += amount;
-    }
-    return { income: inc, expense: exp };
-  }, [filteredTransactions]);
-
-  const monthBalance = income - expense;
-
+function HeroCard({ totalNetWorth, isLoading }) {
   return (
     <div className="relative overflow-hidden p-8 rounded-2xl text-white shadow-lg"
       style={{ background: "linear-gradient(135deg, #4648d4 0%, #6063ee 60%, #8b5cf6 100%)" }}>
@@ -320,44 +308,17 @@ function HeroCard({ totalNetWorth, isLoading, filteredTransactions, accounts }) 
       <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full -ml-10 -mb-10 blur-2xl pointer-events-none" />
 
-      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <p className="font-label-md text-xs tracking-widest uppercase text-white/80 mb-2">
-            Saldo Total Consolidado
-          </p>
-          {isLoading ? (
-            <div className="h-14 w-64 bg-white/20 rounded-xl animate-pulse" />
-          ) : (
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
-              {fmtCurrency(totalNetWorth, "BRL")}
-            </h2>
-          )}
-        </div>
-
-        <div className="flex gap-6 md:gap-8">
-          <div className="flex flex-col items-end">
-            <p className="text-xs font-label-md text-white/70 uppercase">Receitas</p>
-            <span className="flex items-center gap-1 text-emerald-300 font-bold text-lg">
-              <TrendingUp className="w-4 h-4" />
-              {fmtCurrency(income, "BRL")}
-            </span>
-          </div>
-          <div className="w-px bg-white/20" />
-          <div className="flex flex-col items-end">
-            <p className="text-xs font-label-md text-white/70 uppercase">Despesas</p>
-            <span className="flex items-center gap-1 text-red-300 font-bold text-lg">
-              <TrendingDown className="w-4 h-4" />
-              {fmtCurrency(expense, "BRL")}
-            </span>
-          </div>
-          <div className="w-px bg-white/20" />
-          <div className="flex flex-col items-end">
-            <p className="text-xs font-label-md text-white/70 uppercase">Saldo</p>
-            <span className={`font-bold text-lg ${monthBalance >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-              {monthBalance >= 0 ? "+" : ""}{fmtCurrency(monthBalance, "BRL")}
-            </span>
-          </div>
-        </div>
+      <div className="relative z-10">
+        <p className="font-label-md text-xs tracking-widest uppercase text-white/80 mb-2">
+          Saldo Total Consolidado
+        </p>
+        {isLoading ? (
+          <div className="h-14 w-64 bg-white/20 rounded-xl animate-pulse" />
+        ) : (
+          <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
+            {fmtCurrency(totalNetWorth, "BRL")}
+          </h2>
+        )}
       </div>
     </div>
   );
@@ -1060,8 +1021,6 @@ export default function TransactionsV2Page() {
           <HeroCard
             totalNetWorth={totalNetWorth}
             isLoading={isCalculatingNetWorth}
-            filteredTransactions={filteredTransactions}
-            accounts={accounts}
           />
         </motion.div>
 

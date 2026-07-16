@@ -256,7 +256,7 @@ export default function ExpensesChart({ transactions, tags, isLoading, accounts 
   };
 
   return (
-    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm h-full flex flex-col rounded-2xl">
+    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm h-full flex flex-col rounded-2xl overflow-hidden">
       <CardHeader className="border-b border-outline-variant bg-surface-container-low py-3 flex flex-row items-center justify-between">
         <CardTitle className="font-headline-sm text-headline-sm flex items-center gap-2">
           <ShoppingCart className="w-5 h-5 text-error" />

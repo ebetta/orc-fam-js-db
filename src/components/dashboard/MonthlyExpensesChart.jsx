@@ -183,7 +183,7 @@ export default function MonthlyExpensesChart({ transactions, tags, isLoading, ac
   const maxValue = Math.max(...chartData.map((d) => d.despesas), 0);
 
   return (
-    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm h-full flex flex-col rounded-2xl">
+    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm h-full flex flex-col rounded-2xl overflow-hidden">
       <CardHeader className="border-b border-outline-variant bg-surface-container-low flex flex-row items-center justify-between py-3">
         <CardTitle className="font-headline-sm text-headline-sm flex items-center gap-2">
           <ShoppingCart className="w-5 h-5 text-error" />

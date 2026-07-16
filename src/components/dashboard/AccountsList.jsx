@@ -216,7 +216,7 @@ export default function AccountsList({ groupedAccounts, isLoading }) {
   const showSkeleton = isLoading || isProcessing;
 
   return (
-    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm rounded-2xl">
+    <Card className="bg-surface-container-lowest border border-outline-variant shadow-sm rounded-2xl overflow-hidden">
       <CardHeader className="border-b border-outline-variant bg-surface-container-low">
         <div className="flex items-center justify-between">
           <CardTitle className="font-headline-sm text-headline-sm flex items-center gap-2">
