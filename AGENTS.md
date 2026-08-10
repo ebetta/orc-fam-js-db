@@ -9,10 +9,9 @@
   - `npm run build` / `npm run lint` / `npm run preview`
 - **No test runner** or typecheck script.
 
-## Backend: dual setup, local one is active
+## Backend: local Express + PostgreSQL
 - `src/lib/api.js` is the active backend: talks to a local Express server (`http://localhost:3001/api`), uses mock auth via `localStorage`.
-- `src/lib/supabaseClient.js` creates a Supabase client but is **not imported** by the active API layer — the app runs fully local today.
-- `.env` is gitignored; copy `.env.example` to `.env`. Supabase vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) are only needed if `supabaseClient.js` is ever used — the app runs fully local today.
+- The app previously supported Supabase; that client was removed since it was unused. The app runs fully local, with no required env vars — Postgres connection settings live at the top of `server.js`.
 
 ### Local Express server (`server.js`)
 - Requires local PostgreSQL with database `orc-fam` on port 5432 (credentials in `server.js`).
