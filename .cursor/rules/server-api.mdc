@@ -1,6 +1,6 @@
 ---
 description: Convenções da API Express + PostgreSQL local
-globs: server.js
+globs: server.js,pluggy.js
 alwaysApply: false
 ---
 
@@ -15,6 +15,18 @@ alwaysApply: false
 - CRUD genérico: `/api/{accounts,budgets,tags,transactions}` — filtrados por `user_id`.
 - Global (sem `user_id`): `/api/exchange_rates`.
 - Patrimônio: `GET /api/patrimony`, `POST /api/patrimony/rebuild`.
+- Pluggy (Open Finance): `GET /api/pluggy/status`, `GET /api/pluggy/accounts`, `POST /api/pluggy/sync`, `POST /api/pluggy/items/:id/update`.
+
+## Pluggy (`pluggy.js`)
+
+- Cliente da API `https://api.pluggy.ai`. `POST /auth` troca `clientId`/`clientSecret` por uma `apiKey` de 2h (cache em memória, header `X-API-KEY`).
+- Credenciais em `.env` (`PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET`, `PLUGGY_ITEM_IDS`), carregadas com `import 'dotenv/config'`. **Nunca expor ao frontend.**
+- Não existe `GET /items` na API — os item ids vêm de `PLUGGY_ITEM_IDS`.
+- Sync: `external_id = 'pluggy:<tx.id>'` com `INSERT ... ON CONFLICT DO NOTHING`; `DEBIT → expense`, `CREDIT → income`; chama `recalculateMonthlyPatrimony()` **uma vez só** no fim.
+- Filtros da v2 se chamam `dateFrom`/`dateTo`; `pageSize` é rejeitado (páginas fixas em 500).
+- Pendentes (`transactions.is_pending`) são apagadas e regravadas a cada sync, preservando `tag_id`, e **não entram no saldo** — regra replicada no gatilho `update_account_balances_from_transaction`, em `recalculateMonthlyPatrimony()` e em `calculateProgressiveBalances()` (`src/pages/TransactionsV2.jsx`).
+- `accounts.pluggy_cutover_date` limita a janela: nada anterior é importado. Definida como hoje ao vincular a conta.
+- Categorização automática: `src/lib/tagMatcher.js` (módulo ESM puro, compartilhado com o frontend).
 
 ## Formato de resposta
 
@@ -29,4 +41,4 @@ alwaysApply: false
 - `_order` — `asc` ou `desc`
 - `_limit` — inteiro
 
-Esquema das tabelas: ver `GEMINI.md`. Migração one-time: `migration.sql`.
+Esquema das tabelas: ver `GEMINI.md`. Migração one-time: `migration.sql`; migrações posteriores em `migrations/`, aplicadas à mão via `psql`.

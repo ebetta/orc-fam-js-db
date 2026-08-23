@@ -44,6 +44,9 @@ CREATE TABLE public.accounts (
   created_at timestamp with time zone NOT NULL DEFAULT timezone ('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone ('utc'::text, now()),
   current_balance numeric NULL DEFAULT 0,
+  pluggy_account_id text NULL, -- ID da conta no Pluggy (Open Finance); UNIQUE parcial
+  pluggy_last_sync_at timestamp with time zone NULL, -- última sincronização via Pluggy
+  pluggy_cutover_date date NULL, -- nada anterior a esta data é importado (protege o histórico manual)
   CONSTRAINT accounts_pkey PRIMARY KEY (id),
   CONSTRAINT accounts_account_type_check CHECK (
     account_type = ANY (ARRAY['checking'::text, 'savings'::text, 'credit_card'::text, 'investment'::text, 'cash'::text])
@@ -54,6 +57,8 @@ CREATE TABLE public.accounts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON public.accounts(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_pluggy_account_id
+  ON public.accounts (pluggy_account_id) WHERE pluggy_account_id IS NOT NULL;
 ```
 
 ### 2. Categorias/Tags (`tags`)
@@ -126,6 +131,8 @@ CREATE TABLE public.transactions (
   account_id uuid NULL,
   destination_account_id uuid NULL,
   tag_id uuid NULL,
+  external_id text NULL, -- ID da origem externa, ex.: 'pluggy:<uuid>'; UNIQUE parcial por usuário
+  is_pending boolean NOT NULL DEFAULT false, -- fatura aberta/parcela futura: NÃO entra no saldo
   CONSTRAINT transactions_pkey PRIMARY KEY (id),
   CONSTRAINT transactions_destination_account_id_fkey FOREIGN KEY (destination_account_id) REFERENCES accounts (id) ON DELETE RESTRICT,
   CONSTRAINT transactions_account_id_fkey FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE RESTRICT,
@@ -140,6 +147,11 @@ CREATE INDEX IF NOT EXISTS idx_transactions_transaction_date ON public.transacti
 CREATE INDEX IF NOT EXISTS idx_transactions_account_id ON public.transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_destination_account_id ON public.transactions(destination_account_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_tag_id ON public.transactions(tag_id);
+-- Chave de idempotência da sincronização com o Pluggy (INSERT ... ON CONFLICT DO NOTHING)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_external_id
+  ON public.transactions (user_id, external_id) WHERE external_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_transactions_pending_sync
+  ON public.transactions (account_id, transaction_date) WHERE is_pending;
 ```
 
 ### 5. Cotações de Câmbio (`exchange_rates`)

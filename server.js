@@ -1,7 +1,17 @@
+import 'dotenv/config';
 import { randomUUID } from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
+import {
+  isPluggyConfigured,
+  getConfiguredItemIds,
+  fetchItem,
+  fetchAccounts,
+  fetchTransactions,
+  triggerItemUpdate
+} from './pluggy.js';
+import { findMatchingTag } from './src/lib/tagMatcher.js';
 
 const { Pool } = pg;
 
@@ -25,7 +35,9 @@ const MOCK_USER_ID = '11111111-1111-1111-1111-111111111111';
 async function recalculateMonthlyPatrimony() {
   try {
     const { rows: accounts } = await pool.query('SELECT * FROM accounts WHERE user_id = $1', [MOCK_USER_ID]);
-    const { rows: allTransactions } = await pool.query('SELECT * FROM transactions WHERE user_id = $1 ORDER BY transaction_date DESC', [MOCK_USER_ID]);
+    // Pendentes (fatura aberta) não entram no saldo, então também não podem ser
+    // revertidas no cálculo histórico — ver migrations/004.
+    const { rows: allTransactions } = await pool.query('SELECT * FROM transactions WHERE user_id = $1 AND NOT is_pending ORDER BY transaction_date DESC', [MOCK_USER_ID]);
     const { rows: exchangeRates } = await pool.query('SELECT * FROM exchange_rates');
 
     // Get latest rate for each currency pair
@@ -294,6 +306,269 @@ app.post('/api/patrimony/rebuild', async (req, res) => {
   res.json({ data: rows, error: null });
 });
 
+// --- Pluggy Routes (Open Finance) ---
+const PLUGGY_PREFIX = 'pluggy:';
+const DEFAULT_SYNC_DAYS = 90;
+// PENDING vira POSTED com id/valor diferentes; reprocessamos uma janela de folga.
+const SYNC_OVERLAP_DAYS = 7;
+
+function toDateOnly(value) {
+  return new Date(value).toISOString().split('T')[0];
+}
+
+function daysAgo(days) {
+  return toDateOnly(Date.now() - days * 24 * 60 * 60 * 1000);
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Erro comum de configuração: colar a API Key (um JWT) no lugar do Item ID.
+const INVALID_ITEM_ID_MESSAGE = 'Não é um Item ID válido (esperado um UUID). Copie o Item ID na Demo Application do dashboard.pluggy.ai — não use a API Key nem o Connect Token.';
+
+// Status da conexão: quais items estão configurados e como estão no Pluggy.
+app.get('/api/pluggy/status', async (req, res) => {
+  const itemIds = getConfiguredItemIds();
+
+  if (!isPluggyConfigured()) {
+    return res.json({
+      data: { configured: false, itemIds, items: [] },
+      error: null
+    });
+  }
+
+  try {
+    const items = await Promise.all(itemIds.map(async (id) => {
+      if (!UUID_RE.test(id)) {
+        return { id, connectorName: null, status: 'INVALID', executionStatus: null, lastUpdatedAt: null, error: INVALID_ITEM_ID_MESSAGE };
+      }
+      try {
+        const item = await fetchItem(id);
+        return {
+          id: item.id,
+          connectorName: item.connector?.name || null,
+          status: item.status,
+          executionStatus: item.executionStatus,
+          lastUpdatedAt: item.lastUpdatedAt,
+          error: item.error?.message || null
+        };
+      } catch (error) {
+        return { id, connectorName: null, status: 'ERROR', executionStatus: null, lastUpdatedAt: null, error: error.message };
+      }
+    }));
+
+    res.json({ data: { configured: true, itemIds, items }, error: null });
+  } catch (error) {
+    console.error('Error GET pluggy/status:', error);
+    res.status(500).json({ error: { message: error.message }, data: null });
+  }
+});
+
+// Contas disponíveis no Pluggy, já cruzadas com o mapeamento local.
+app.get('/api/pluggy/accounts', async (req, res) => {
+  try {
+    if (!isPluggyConfigured()) {
+      return res.status(400).json({ error: { message: 'Pluggy não configurado. Defina PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET no .env' }, data: null });
+    }
+
+    const itemIds = getConfiguredItemIds();
+    const { rows: localAccounts } = await pool.query(
+      'SELECT id, name, bank, account_type, pluggy_account_id, pluggy_last_sync_at, pluggy_cutover_date FROM accounts WHERE user_id = $1',
+      [MOCK_USER_ID]
+    );
+    const byPluggyId = new Map(
+      localAccounts.filter(a => a.pluggy_account_id).map(a => [a.pluggy_account_id, a])
+    );
+
+    const invalidIds = itemIds.filter(id => !UUID_RE.test(id));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({ error: { message: `PLUGGY_ITEM_IDS inválido. ${INVALID_ITEM_ID_MESSAGE}` }, data: null });
+    }
+
+    const accounts = [];
+    for (const itemId of itemIds) {
+      const remoteAccounts = await fetchAccounts(itemId);
+      for (const account of remoteAccounts) {
+        const local = byPluggyId.get(account.id);
+        accounts.push({
+          id: account.id,
+          item_id: itemId,
+          name: account.name,
+          type: account.type,
+          subtype: account.subtype,
+          number: account.number,
+          balance: account.balance,
+          currency_code: account.currencyCode,
+          local_account_id: local?.id || null,
+          local_account_name: local?.name || null,
+          last_sync_at: local?.pluggy_last_sync_at || null,
+          cutover_date: local?.pluggy_cutover_date ? toDateOnly(local.pluggy_cutover_date) : null
+        });
+      }
+    }
+
+    res.json({ data: accounts, error: null });
+  } catch (error) {
+    console.error('Error GET pluggy/accounts:', error);
+    res.status(500).json({ error: { message: error.message }, data: null });
+  }
+});
+
+// Sincroniza transações do Pluggy para as contas locais mapeadas.
+app.post('/api/pluggy/sync', async (req, res) => {
+  try {
+    if (!isPluggyConfigured()) {
+      return res.status(400).json({ error: { message: 'Pluggy não configurado. Defina PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET no .env' }, data: null });
+    }
+
+    const { accountId, from, to } = req.body || {};
+
+    const params = [MOCK_USER_ID];
+    let sql = 'SELECT id, name, pluggy_account_id, pluggy_last_sync_at, pluggy_cutover_date FROM accounts WHERE user_id = $1 AND pluggy_account_id IS NOT NULL';
+    if (accountId) {
+      params.push(accountId);
+      sql += ' AND id = $2';
+    }
+    const { rows: accounts } = await pool.query(sql, params);
+
+    if (accounts.length === 0) {
+      return res.status(400).json({ error: { message: 'Nenhuma conta local está mapeada a uma conta do Pluggy.' }, data: null });
+    }
+
+    const { rows: tags } = await pool.query('SELECT id, name FROM tags WHERE user_id = $1', [MOCK_USER_ID]);
+
+    const results = { total: 0, imported: 0, skipped: 0, errors: 0, pending: 0, details: [] };
+    const endDate = to || toDateOnly(Date.now());
+
+    for (const account of accounts) {
+      const requestedStart = from
+        || (account.pluggy_last_sync_at
+          ? toDateOnly(new Date(account.pluggy_last_sync_at).getTime() - SYNC_OVERLAP_DAYS * 24 * 60 * 60 * 1000)
+          : daysAgo(DEFAULT_SYNC_DAYS));
+
+      // A data de corte protege o histórico lançado à mão: nada anterior a ela é importado.
+      const cutover = account.pluggy_cutover_date ? toDateOnly(account.pluggy_cutover_date) : null;
+      const startDate = cutover && cutover > requestedStart ? cutover : requestedStart;
+
+      if (startDate > endDate) {
+        results.details.push({
+          status: 'skipped',
+          description: `Conta ${account.name}`,
+          amount: 0,
+          date: startDate,
+          reason: `Data de corte (${startDate}) posterior ao fim do período`
+        });
+        results.skipped++;
+        continue;
+      }
+
+      let transactions;
+      try {
+        transactions = await fetchTransactions(account.pluggy_account_id, { from: startDate, to: endDate });
+      } catch (error) {
+        results.errors++;
+        results.details.push({
+          status: 'error',
+          description: `Conta ${account.name}`,
+          amount: 0,
+          date: startDate,
+          reason: error.message
+        });
+        continue;
+      }
+
+      // Pendentes (fatura aberta / parcelas futuras) mudam de valor, descrição e até
+      // de id até consolidarem. Em vez de tentar casá-las, apagamos as que a própria
+      // integração gravou na janela e regravamos o estado atual — o que também cobre
+      // as que sumiram. As tags ajustadas à mão são preservadas por external_id.
+      const { rows: previousPending } = await pool.query(
+        `DELETE FROM transactions
+          WHERE user_id = $1 AND account_id = $2 AND is_pending
+            AND external_id LIKE $3
+            AND transaction_date BETWEEN $4 AND $5
+         RETURNING external_id, tag_id`,
+        [MOCK_USER_ID, account.id, `${PLUGGY_PREFIX}%`, startDate, endDate]
+      );
+      const pendingTags = new Map(
+        previousPending.filter(r => r.tag_id).map(r => [r.external_id, r.tag_id])
+      );
+
+      for (const tx of transactions) {
+        results.total++;
+
+        const description = tx.description || tx.descriptionRaw || 'Transação sem descrição';
+        const amount = Math.abs(Number(tx.amount) || 0);
+        const date = toDateOnly(tx.date);
+        const externalId = `${PLUGGY_PREFIX}${tx.id}`;
+        const isPending = tx.status === 'PENDING';
+
+        try {
+          const { rows } = await pool.query(
+            `INSERT INTO transactions
+               (id, user_id, description, amount, transaction_type, transaction_date, tag_id, notes, account_id, external_id, is_pending)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             ON CONFLICT (user_id, external_id) WHERE external_id IS NOT NULL DO NOTHING
+             RETURNING id, tag_id`,
+            [
+              randomUUID(),
+              MOCK_USER_ID,
+              description,
+              amount,
+              tx.type === 'DEBIT' ? 'expense' : 'income',
+              date,
+              pendingTags.get(externalId) || findMatchingTag(description, tags),
+              tx.category ? `Pluggy · ${tx.category}` : 'Pluggy',
+              account.id,
+              externalId,
+              isPending
+            ]
+          );
+
+          if (rows.length === 0) {
+            results.skipped++;
+            results.details.push({ status: 'skipped', description, amount, date, reason: 'Transação já importada' });
+          } else {
+            results.imported++;
+            if (isPending) results.pending++;
+            results.details.push({
+              status: 'imported',
+              description,
+              amount,
+              date,
+              reason: isPending ? 'Importado (fatura aberta — pode mudar)' : 'Importado com sucesso',
+              transactionId: rows[0].id,
+              tagId: rows[0].tag_id
+            });
+          }
+        } catch (error) {
+          results.errors++;
+          results.details.push({ status: 'error', description, amount, date, reason: error.message });
+        }
+      }
+
+      await pool.query('UPDATE accounts SET pluggy_last_sync_at = now() WHERE id = $1 AND user_id = $2', [account.id, MOCK_USER_ID]);
+    }
+
+    // Uma única vez ao final: o recálculo varre todo o histórico e seria caríssimo por linha.
+    await recalculateMonthlyPatrimony();
+
+    res.json({ data: results, error: null });
+  } catch (error) {
+    console.error('Error POST pluggy/sync:', error);
+    res.status(500).json({ error: { message: error.message }, data: null });
+  }
+});
+
+// Pede ao Pluggy que atualize o item (limitado a 1x por hora em apps novas).
+app.post('/api/pluggy/items/:id/update', async (req, res) => {
+  try {
+    const item = await triggerItemUpdate(req.params.id);
+    res.json({ data: { id: item.id, status: item.status, executionStatus: item.executionStatus }, error: null });
+  } catch (error) {
+    console.error('Error POST pluggy/items/:id/update:', error);
+    res.status(500).json({ error: { message: error.message }, data: null });
+  }
+});
+
 // --- Routes (user-scoped tables) ---
 const tables = ['accounts', 'budgets', 'tags', 'transactions'];
 
@@ -317,7 +592,7 @@ app.get('/api/auth/user', (req, res) => {
   res.json({ user: { id: MOCK_USER_ID, email: 'local@example.com' } });
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Local Postgres API Server running on http://localhost:${PORT}`);
 });
