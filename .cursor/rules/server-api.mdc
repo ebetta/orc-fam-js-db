@@ -15,7 +15,7 @@ alwaysApply: false
 - CRUD genérico: `/api/{accounts,budgets,tags,transactions}` — filtrados por `user_id`.
 - Global (sem `user_id`): `/api/exchange_rates`.
 - Patrimônio: `GET /api/patrimony`, `POST /api/patrimony/rebuild`.
-- Pluggy (Open Finance): `GET /api/pluggy/status`, `GET /api/pluggy/accounts`, `POST /api/pluggy/sync`, `POST /api/pluggy/items/:id/update`.
+- Pluggy (Open Finance): `GET /api/pluggy/status`, `GET /api/pluggy/accounts`, `POST /api/pluggy/sync`, `POST /api/pluggy/reconcile`, `POST /api/pluggy/items/:id/update`.
 
 ## Pluggy (`pluggy.js`)
 
@@ -24,8 +24,10 @@ alwaysApply: false
 - Não existe `GET /items` na API — os item ids vêm de `PLUGGY_ITEM_IDS`.
 - Sync: `external_id = 'pluggy:<tx.id>'` com `INSERT ... ON CONFLICT DO NOTHING`; `DEBIT → expense`, `CREDIT → income`; chama `recalculateMonthlyPatrimony()` **uma vez só** no fim.
 - Filtros da v2 se chamam `dateFrom`/`dateTo`; `pageSize` é rejeitado (páginas fixas em 500).
-- Pendentes (`transactions.is_pending`) são apagadas e regravadas a cada sync, preservando `tag_id`, e **não entram no saldo** — regra replicada no gatilho `update_account_balances_from_transaction`, em `recalculateMonthlyPatrimony()` e em `calculateProgressiveBalances()` (`src/pages/TransactionsV2.jsx`).
+- Pendentes (`transactions.is_pending`) são apagadas e regravadas a cada sync, preservando `tag_id`, e **contam no saldo** normalmente (ver `migrations/005`).
+- Conector 200 (MeuPluggy) coleta do banco ~1x/dia e recusa `PATCH /items`; `status` expõe `nextAutoSyncAt` e `canForceUpdate`.
 - `accounts.pluggy_cutover_date` limita a janela: nada anterior é importado. Definida como hoje ao vincular a conta.
+- O saldo local deriva do razão e por isso desalinha do Pluggy com o tempo (12 meses de histórico + corte + ciclo da fatura). `POST /api/pluggy/reconcile` lança um ajuste único com `external_id` nulo. Conta `CREDIT`: alvo é `-balance`.
 - Categorização automática: `src/lib/tagMatcher.js` (módulo ESM puro, compartilhado com o frontend).
 
 ## Formato de resposta

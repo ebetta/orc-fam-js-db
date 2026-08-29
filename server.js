@@ -35,9 +35,7 @@ const MOCK_USER_ID = '11111111-1111-1111-1111-111111111111';
 async function recalculateMonthlyPatrimony() {
   try {
     const { rows: accounts } = await pool.query('SELECT * FROM accounts WHERE user_id = $1', [MOCK_USER_ID]);
-    // Pendentes (fatura aberta) não entram no saldo, então também não podem ser
-    // revertidas no cálculo histórico — ver migrations/004.
-    const { rows: allTransactions } = await pool.query('SELECT * FROM transactions WHERE user_id = $1 AND NOT is_pending ORDER BY transaction_date DESC', [MOCK_USER_ID]);
+    const { rows: allTransactions } = await pool.query('SELECT * FROM transactions WHERE user_id = $1 ORDER BY transaction_date DESC', [MOCK_USER_ID]);
     const { rows: exchangeRates } = await pool.query('SELECT * FROM exchange_rates');
 
     // Get latest rate for each currency pair
@@ -325,6 +323,17 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Erro comum de configuração: colar a API Key (um JWT) no lugar do Item ID.
 const INVALID_ITEM_ID_MESSAGE = 'Não é um Item ID válido (esperado um UUID). Copie o Item ID na Demo Application do dashboard.pluggy.ai — não use a API Key nem o Connect Token.';
 
+// Conector 200 = MeuPluggy. Esses itens coletam do banco sozinhos (1x/dia) e
+// recusam PATCH /items com "MeuPluggy item cant be updated".
+const MEU_PLUGGY_CONNECTOR_ID = 200;
+
+// No Pluggy, o saldo de uma conta CREDIT é o valor devido (positivo). Neste app um
+// cartão carrega saldo negativo, então o alvo local é o oposto.
+function expectedLocalBalance(pluggyAccount) {
+  const balance = Number(pluggyAccount.balance) || 0;
+  return pluggyAccount.type === 'CREDIT' ? -balance : balance;
+}
+
 // Status da conexão: quais items estão configurados e como estão no Pluggy.
 app.get('/api/pluggy/status', async (req, res) => {
   const itemIds = getConfiguredItemIds();
@@ -339,20 +348,25 @@ app.get('/api/pluggy/status', async (req, res) => {
   try {
     const items = await Promise.all(itemIds.map(async (id) => {
       if (!UUID_RE.test(id)) {
-        return { id, connectorName: null, status: 'INVALID', executionStatus: null, lastUpdatedAt: null, error: INVALID_ITEM_ID_MESSAGE };
+        return { id, connectorName: null, connectorId: null, status: 'INVALID', executionStatus: null, lastUpdatedAt: null, nextAutoSyncAt: null, canForceUpdate: false, error: INVALID_ITEM_ID_MESSAGE };
       }
       try {
         const item = await fetchItem(id);
         return {
           id: item.id,
           connectorName: item.connector?.name || null,
+          connectorId: item.connector?.id ?? null,
           status: item.status,
           executionStatus: item.executionStatus,
           lastUpdatedAt: item.lastUpdatedAt,
+          nextAutoSyncAt: item.nextAutoSyncAt || null,
+          // Itens do conector 200 (MeuPluggy) não aceitam PATCH /items: a coleta no
+          // banco acontece sozinha, uma vez por dia.
+          canForceUpdate: item.connector?.id !== MEU_PLUGGY_CONNECTOR_ID,
           error: item.error?.message || null
         };
       } catch (error) {
-        return { id, connectorName: null, status: 'ERROR', executionStatus: null, lastUpdatedAt: null, error: error.message };
+        return { id, connectorName: null, connectorId: null, status: 'ERROR', executionStatus: null, lastUpdatedAt: null, nextAutoSyncAt: null, canForceUpdate: false, error: error.message };
       }
     }));
 
@@ -372,7 +386,7 @@ app.get('/api/pluggy/accounts', async (req, res) => {
 
     const itemIds = getConfiguredItemIds();
     const { rows: localAccounts } = await pool.query(
-      'SELECT id, name, bank, account_type, pluggy_account_id, pluggy_last_sync_at, pluggy_cutover_date FROM accounts WHERE user_id = $1',
+      'SELECT id, name, bank, account_type, current_balance, pluggy_account_id, pluggy_last_sync_at, pluggy_cutover_date FROM accounts WHERE user_id = $1',
       [MOCK_USER_ID]
     );
     const byPluggyId = new Map(
@@ -401,7 +415,12 @@ app.get('/api/pluggy/accounts', async (req, res) => {
           local_account_id: local?.id || null,
           local_account_name: local?.name || null,
           last_sync_at: local?.pluggy_last_sync_at || null,
-          cutover_date: local?.pluggy_cutover_date ? toDateOnly(local.pluggy_cutover_date) : null
+          cutover_date: local?.pluggy_cutover_date ? toDateOnly(local.pluggy_cutover_date) : null,
+          local_balance: local ? Number(local.current_balance) : null,
+          // Positivo = falta lançar receita no app; negativo = falta lançar despesa.
+          difference: local
+            ? Math.round((expectedLocalBalance(account) - Number(local.current_balance)) * 100) / 100
+            : null
         });
       }
     }
@@ -558,9 +577,92 @@ app.post('/api/pluggy/sync', async (req, res) => {
   }
 });
 
+// Lança um ajuste único que alinha o saldo local ao saldo informado pelo Pluggy.
+// A deriva é inerente ao desenho: o Pluggy guarda 12 meses e a data de corte deixa
+// de fora o histórico lançado à mão, então o razão local nunca reconstrói o saldo
+// sozinho. O ajuste tem external_id nulo, então nenhuma sincronização o remove.
+app.post('/api/pluggy/reconcile', async (req, res) => {
+  try {
+    if (!isPluggyConfigured()) {
+      return res.status(400).json({ error: { message: 'Pluggy não configurado.' }, data: null });
+    }
+
+    const { accountId } = req.body || {};
+    if (!accountId) {
+      return res.status(400).json({ error: { message: 'Informe a conta a conciliar.' }, data: null });
+    }
+
+    const { rows } = await pool.query(
+      'SELECT id, name, current_balance, pluggy_account_id FROM accounts WHERE id = $1 AND user_id = $2 AND pluggy_account_id IS NOT NULL',
+      [accountId, MOCK_USER_ID]
+    );
+    const account = rows[0];
+    if (!account) {
+      return res.status(400).json({ error: { message: 'Conta não encontrada ou não vinculada ao Pluggy.' }, data: null });
+    }
+
+    let remote = null;
+    for (const itemId of getConfiguredItemIds()) {
+      if (!UUID_RE.test(itemId)) continue;
+      const found = (await fetchAccounts(itemId)).find(a => a.id === account.pluggy_account_id);
+      if (found) { remote = found; break; }
+    }
+    if (!remote) {
+      return res.status(400).json({ error: { message: 'Conta não encontrada no Pluggy.' }, data: null });
+    }
+
+    const target = expectedLocalBalance(remote);
+    const current = Number(account.current_balance) || 0;
+    const delta = Math.round((target - current) * 100) / 100;
+
+    if (Math.abs(delta) < 0.01) {
+      return res.json({ data: { adjusted: false, delta: 0, local_balance: current, pluggy_balance: remote.balance }, error: null });
+    }
+
+    const { rows: inserted } = await pool.query(
+      `INSERT INTO transactions
+         (id, user_id, description, amount, transaction_type, transaction_date, account_id, notes)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, $6, $7)
+       RETURNING id`,
+      [
+        randomUUID(),
+        MOCK_USER_ID,
+        'Conciliação de saldo (Pluggy)',
+        Math.abs(delta),
+        delta > 0 ? 'income' : 'expense',
+        account.id,
+        `Ajuste automático: alinha o saldo ao valor informado pelo Pluggy (${remote.balance})`
+      ]
+    );
+
+    await recalculateMonthlyPatrimony();
+
+    res.json({
+      data: {
+        adjusted: true,
+        delta,
+        transactionId: inserted[0].id,
+        local_balance: target,
+        pluggy_balance: remote.balance
+      },
+      error: null
+    });
+  } catch (error) {
+    console.error('Error POST pluggy/reconcile:', error);
+    res.status(500).json({ error: { message: error.message }, data: null });
+  }
+});
+
 // Pede ao Pluggy que atualize o item (limitado a 1x por hora em apps novas).
 app.post('/api/pluggy/items/:id/update', async (req, res) => {
   try {
+    const current = await fetchItem(req.params.id);
+    if (current.connector?.id === MEU_PLUGGY_CONNECTOR_ID) {
+      return res.status(400).json({
+        data: null,
+        error: { message: `Itens do MeuPluggy não podem ser atualizados sob demanda — a coleta é automática, 1x por dia.${current.nextAutoSyncAt ? ` Próxima: ${current.nextAutoSyncAt}.` : ''} Para antecipar, atualize a conexão em meu.pluggy.ai.` }
+      });
+    }
     const item = await triggerItemUpdate(req.params.id);
     res.json({ data: { id: item.id, status: item.status, executionStatus: item.executionStatus }, error: null });
   } catch (error) {

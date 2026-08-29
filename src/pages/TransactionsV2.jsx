@@ -55,10 +55,6 @@ const calculateProgressiveBalances = async (
     }));
   }
 
-  // Transações pendentes (fatura aberta, vindas do Pluggy) não entram no saldo da
-  // conta — ver migrations/004. Elas continuam sendo exibidas, mas sem saldo.
-  const balanceTransactions = allSystemTransactions.filter((t) => !t.is_pending);
-
   if (filters.accountId !== "all") {
     const selectedAccount = accounts.find((acc) => acc.id === filters.accountId);
     if (!selectedAccount) return transactionsToDisplay;
@@ -71,7 +67,7 @@ const calculateProgressiveBalances = async (
     const calculatedCurrency = selectedAccount.currency || "BRL";
     const accountCurrencyMap = new Map(accounts.map((acc) => [acc.id, acc.currency || "BRL"]));
 
-    const accountTransactions = balanceTransactions
+    const accountTransactions = allSystemTransactions
       .filter(
         (t) =>
           t.account_id === filters.accountId ||
@@ -143,7 +139,7 @@ const calculateProgressiveBalances = async (
   const firstTxInView = transactionsWithBalances[0];
   let currencyForBalance = "BRL";
 
-  const allTransactionsChronological = [...balanceTransactions].sort((a, b) => {
+  const allTransactionsChronological = [...allSystemTransactions].sort((a, b) => {
     const dateA = parseISO(a.transaction_date).getTime();
     const dateB = parseISO(b.transaction_date).getTime();
     if (dateA !== dateB) return dateA - dateB;
@@ -229,8 +225,7 @@ const calculateProgressiveBalances = async (
       );
     }
 
-    if (prevTx.is_pending) efeitoInversoTxAnterior = 0;
-    else if (prevTx.transaction_type === "income") efeitoInversoTxAnterior = -amountPrevTxInCalc;
+    if (prevTx.transaction_type === "income") efeitoInversoTxAnterior = -amountPrevTxInCalc;
     else if (prevTx.transaction_type === "expense") efeitoInversoTxAnterior = +amountPrevTxInCalc;
 
     currentTx.progressiveBalance = prevTx.progressiveBalance + efeitoInversoTxAnterior;

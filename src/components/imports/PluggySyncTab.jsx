@@ -17,7 +17,8 @@ import {
   Landmark,
   Link2,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Scale
 } from "lucide-react";
 
 const UNMAPPED = "__none__";
@@ -102,6 +103,31 @@ export default function PluggySyncTab({ accounts, onFinish }) {
     } catch (err) {
       console.error("Erro ao salvar data de corte:", err);
       setError("Não foi possível salvar a data de corte.");
+    }
+    setSavingAccountId(null);
+  };
+
+  const handleReconcile = async (pluggyAccount) => {
+    const diff = pluggyAccount.difference;
+    const texto = formatCurrency(Math.abs(diff), pluggyAccount.currency_code);
+    const confirmado = window.confirm(
+      `Lançar um ajuste de ${texto} em "${pluggyAccount.local_account_name}" para o saldo do app ` +
+      `bater com o do Pluggy?\n\nApp: ${formatCurrency(pluggyAccount.local_balance, pluggyAccount.currency_code)}\n` +
+      `Pluggy: ${formatCurrency(pluggyAccount.type === 'CREDIT' ? -pluggyAccount.balance : pluggyAccount.balance, pluggyAccount.currency_code)}`
+    );
+    if (!confirmado) return;
+
+    setSavingAccountId(pluggyAccount.id);
+    setError("");
+    try {
+      const { error: reconcileError } = await api.post('pluggy/reconcile', {
+        accountId: pluggyAccount.local_account_id
+      });
+      if (reconcileError) throw new Error(reconcileError.message);
+      await loadConnection();
+    } catch (err) {
+      console.error("Erro ao conciliar:", err);
+      setError(err.message || "Não foi possível conciliar o saldo.");
     }
     setSavingAccountId(null);
   };
@@ -202,8 +228,19 @@ export default function PluggySyncTab({ accounts, onFinish }) {
                   {item.connectorName || 'Conexão'}
                 </p>
                 <p className="text-xs text-gray-500">
-                  Atualizado em {formatDateTime(item.lastUpdatedAt)}
+                  Dados coletados do banco em {formatDateTime(item.lastUpdatedAt)}
                 </p>
+                {item.nextAutoSyncAt && (
+                  <p className="text-xs text-gray-500">
+                    Próxima coleta automática: {formatDateTime(item.nextAutoSyncAt)}
+                  </p>
+                )}
+                {!item.canForceUpdate && item.status !== 'INVALID' && item.status !== 'ERROR' && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    O MeuPluggy coleta do banco uma vez por dia e não aceita atualização sob
+                    demanda — compras posteriores à última coleta só aparecem depois da próxima.
+                  </p>
+                )}
                 {item.error && (
                   <p className="text-xs text-red-600 mt-1">{item.error}</p>
                 )}
@@ -301,6 +338,54 @@ export default function PluggySyncTab({ accounts, onFinish }) {
                     <p className="text-xs text-gray-500">
                       Última sincronização: {formatDateTime(pluggyAccount.last_sync_at)}
                     </p>
+
+                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Saldo no app</span>
+                        <span className="font-medium text-slate-900">
+                          {formatCurrency(pluggyAccount.local_balance, pluggyAccount.currency_code)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Saldo no Pluggy</span>
+                        <span className="font-medium text-slate-900">
+                          {formatCurrency(
+                            pluggyAccount.type === 'CREDIT' ? -pluggyAccount.balance : pluggyAccount.balance,
+                            pluggyAccount.currency_code
+                          )}
+                        </span>
+                      </div>
+                      {Math.abs(pluggyAccount.difference ?? 0) < 0.01 ? (
+                        <p className="flex items-center gap-1.5 text-xs text-emerald-700 pt-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Saldos alinhados
+                        </p>
+                      ) : (
+                        <div className="space-y-2 pt-1">
+                          <p className="text-xs text-amber-700">
+                            Concilie apenas se a diferença continuar depois de sincronizar. Logo após
+                            uma compra recente ela costuma ser só o retrato do Pluggy adiantado em
+                            relação à lista de transações, e some sozinha na próxima coleta —
+                            conciliar agora criaria uma duplicata.
+                          </p>
+                          <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs text-amber-700">
+                            Diferença de {formatCurrency(Math.abs(pluggyAccount.difference), pluggyAccount.currency_code)}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReconcile(pluggyAccount)}
+                            disabled={savingAccountId === pluggyAccount.id}
+                            className="h-7 text-xs"
+                          >
+                            <Scale className="w-3.5 h-3.5 mr-1.5" />
+                            Conciliar
+                          </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -351,9 +436,10 @@ export default function PluggySyncTab({ accounts, onFinish }) {
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Transações já importadas são ignoradas automaticamente pelo ID do Pluggy</li>
+              <li>• A sincronização traz tudo que o Pluggy já coletou — o que for mais recente que a última coleta ainda não estará lá</li>
+            <li>• Transações já importadas são ignoradas automaticamente pelo ID do Pluggy</li>
               <li>• Compras no cartão entram como despesa; pagamentos de fatura, como receita</li>
-              <li>• Compras da fatura aberta são importadas e reescritas a cada sincronização, sem entrar no saldo até a fatura fechar</li>
+              <li>• Compras da fatura aberta contam no saldo e são reescritas a cada sincronização, porque o banco ainda pode alterá-las</li>
               <li>• Tags são atribuídas automaticamente baseadas na descrição</li>
             </ul>
           </div>

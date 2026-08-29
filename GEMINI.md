@@ -132,7 +132,7 @@ CREATE TABLE public.transactions (
   destination_account_id uuid NULL,
   tag_id uuid NULL,
   external_id text NULL, -- ID da origem externa, ex.: 'pluggy:<uuid>'; UNIQUE parcial por usuário
-  is_pending boolean NOT NULL DEFAULT false, -- fatura aberta/parcela futura: NÃO entra no saldo
+  is_pending boolean NOT NULL DEFAULT false, -- fatura aberta: a sync reescreve estas linhas a cada execução
   CONSTRAINT transactions_pkey PRIMARY KEY (id),
   CONSTRAINT transactions_destination_account_id_fkey FOREIGN KEY (destination_account_id) REFERENCES accounts (id) ON DELETE RESTRICT,
   CONSTRAINT transactions_account_id_fkey FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE RESTRICT,
