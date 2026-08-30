@@ -14,8 +14,10 @@ import { startOfMonth, endOfMonth, parseISO, max, min, format, differenceInCalen
 
 const getNumberOfPeriods = (budget, filterStart, filterEnd) => {
   if (!filterStart || !filterEnd) return 1;
+  // Orçamentos sem end_date estão vigentes (em aberto); usamos o limite do filtro no lugar.
   const budgetStart = max([parseISO(budget.start_date), filterStart]);
-  const budgetEnd = min([parseISO(budget.end_date), filterEnd]);
+  const budgetEndRaw = budget.end_date ? parseISO(budget.end_date) : filterEnd;
+  const budgetEnd = min([budgetEndRaw, filterEnd]);
   if (budgetEnd < budgetStart) return 0;
   switch (budget.period) {
     case 'monthly':
@@ -27,6 +29,21 @@ const getNumberOfPeriods = (budget, filterStart, filterEnd) => {
     default:
       return 1;
   }
+};
+
+// Quando um orçamento é encerrado e substituído no meio do período filtrado, as duas linhas
+// (a encerrada e a nova) aparecem juntas. Sem isso, o gasto do período inteiro seria contado
+// em dobro (uma vez por linha). Cada orçamento soma apenas os gastos da sua própria vigência.
+const getBudgetScopedTransactions = (budget, transactionsInPeriod, filterStart, filterEnd) => {
+  if (!filterStart || !filterEnd) return transactionsInPeriod;
+
+  const scopeStart = max([parseISO(budget.start_date), filterStart]);
+  const scopeEndRaw = budget.end_date ? parseISO(budget.end_date) : filterEnd;
+  const scopeEnd = min([scopeEndRaw, filterEnd]);
+
+  const startStr = format(scopeStart, 'yyyy-MM-dd');
+  const endStr = format(scopeEnd, 'yyyy-MM-dd');
+  return transactionsInPeriod.filter(t => t.transaction_date >= startStr && t.transaction_date <= endStr);
 };
 
 export default function ReportsPage() {
@@ -142,8 +159,8 @@ export default function ReportsPage() {
     const relevantBudgets = periodStart && periodEnd
       ? allBudgets.filter(budget => {
         const budgetStart = parseISO(budget.start_date);
-        const budgetEnd = parseISO(budget.end_date);
-        return budgetStart <= periodEnd && budgetEnd >= periodStart;
+        const budgetIsOpenOrCoversStart = !budget.end_date || parseISO(budget.end_date) >= periodStart;
+        return budgetStart <= periodEnd && budgetIsOpenOrCoversStart;
       })
       : allBudgets;
     const allBudgetItems = [];
@@ -152,7 +169,8 @@ export default function ReportsPage() {
       const activeExpenseTags = allTags.filter(t =>
         t.is_active !== false &&
         t.tag_type === 'expense' &&
-        (t.parent_tag_id || !parentTagIds.has(t.id))
+        (t.parent_tag_id || !parentTagIds.has(t.id)) &&
+        filters.selectedTags[t.id]
       );
       activeExpenseTags.forEach(tag => {
         const tagBudgets = relevantBudgets.filter(b => b.tag_id === tag.id);
@@ -164,7 +182,11 @@ export default function ReportsPage() {
               ...budget,
               tagName: tag.name,
               tagColor: tag.color,
-              spent_amount: calculateSpentAmountForPeriod(budget, transactionsForPeriod, allTags),
+              spent_amount: calculateSpentAmountForPeriod(
+                budget,
+                getBudgetScopedTransactions(budget, transactionsForPeriod, periodStart, periodEnd),
+                allTags
+              ),
               total_budgeted_for_period: totalBudgetedForPeriod,
               isVirtual: false
             });
@@ -245,7 +267,7 @@ export default function ReportsPage() {
       return b.groupTotalOrcado - a.groupTotalOrcado;
     });
     setGroupedBudgetsForAccordion(processedGroups);
-  }, [allBudgets, allTransactions, allTags, isLoading, filters.period, calculateSpentAmountForPeriod]);
+  }, [allBudgets, allTransactions, allTags, isLoading, filters.period, filters.selectedTags, calculateSpentAmountForPeriod]);
 
   const reportTypeToActiveReport = {
     expenses_by_tag: 'expenses',

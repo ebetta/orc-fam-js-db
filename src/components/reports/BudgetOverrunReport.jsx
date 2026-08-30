@@ -10,13 +10,21 @@ import html2canvas from 'html2canvas';
 
 const formatCurrency = (amount) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount);
 
+const percentOf = (gasto, orcado) => (orcado > 0 ? (gasto / orcado) * 100 : 0);
+
 export default function BudgetOverrunReport({ groupedBudgets, tags, isLoading, onClose, isPopup = false, forPrint = false }) {
     const reportRef = useRef();
-    const footerRef = useRef();
 
     const overrunGroups = useMemo(() => {
         return (groupedBudgets || [])
             .map(group => {
+                // Group totals reflect ALL budgets in the category (not just the ones
+                // that individually overran) so they match the real orçado/gasto shown
+                // elsewhere in the app (e.g. the budget cards) — a category can go over
+                // its total even when no single tag inside it does, and vice-versa.
+                const groupTotalOrcado = group.groupTotalOrcado || 0;
+                const groupTotalGasto = group.groupTotalGasto || 0;
+                const groupTotalExcesso = groupTotalGasto - groupTotalOrcado;
                 const overrunItems = group.budgets
                     .filter(item => {
                         const orcado = item.total_budgeted_for_period || 0;
@@ -29,9 +37,6 @@ export default function BudgetOverrunReport({ groupedBudgets, tags, isLoading, o
                         return { ...item, orcado, gasto, excesso: gasto - orcado };
                     })
                     .sort((a, b) => b.excesso - a.excesso);
-                const groupTotalOrcado = overrunItems.reduce((sum, item) => sum + item.orcado, 0);
-                const groupTotalGasto = overrunItems.reduce((sum, item) => sum + item.gasto, 0);
-                const groupTotalExcesso = overrunItems.reduce((sum, item) => sum + item.excesso, 0);
                 return {
                     parentTag: group.parentTag,
                     items: overrunItems,
@@ -40,7 +45,7 @@ export default function BudgetOverrunReport({ groupedBudgets, tags, isLoading, o
                     groupTotalExcesso,
                 };
             })
-            .filter(group => group.items.length > 0)
+            .filter(group => group.groupTotalExcesso > 0 && group.items.length > 0)
             .sort((a, b) => b.groupTotalExcesso - a.groupTotalExcesso);
     }, [groupedBudgets]);
 
@@ -51,6 +56,29 @@ export default function BudgetOverrunReport({ groupedBudgets, tags, isLoading, o
             excesso: acc.excesso + group.groupTotalExcesso,
         }), { orcado: 0, gasto: 0, excesso: 0 });
     }, [overrunGroups]);
+
+    // As categorias que ficaram dentro do orçamento não aparecem no relatório, mas a
+    // economia delas é justamente o que separa o excesso bruto daqui do "Disponível"
+    // líquido mostrado no cabeçalho da tela de Orçamentos. A reconciliação abaixo torna
+    // essa diferença explícita para quem compara as duas telas.
+    const reconciliation = useMemo(() => {
+        const overrunIds = new Set(overrunGroups.map(g => g.parentTag.id));
+        const otherGroups = (groupedBudgets || []).filter(g => !overrunIds.has(g.parentTag.id));
+        const othersOrcado = otherGroups.reduce((sum, g) => sum + (g.groupTotalOrcado || 0), 0);
+        const othersGasto = otherGroups.reduce((sum, g) => sum + (g.groupTotalGasto || 0), 0);
+        const totalOrcado = grandTotals.orcado + othersOrcado;
+        const totalGasto = grandTotals.gasto + othersGasto;
+        return {
+            hasOthers: otherGroups.length > 0,
+            othersOrcado,
+            othersGasto,
+            othersExcesso: othersGasto - othersOrcado,
+            totalOrcado,
+            totalGasto,
+            totalExcesso: totalGasto - totalOrcado,
+            totalDisponivel: totalOrcado - totalGasto,
+        };
+    }, [groupedBudgets, overrunGroups, grandTotals]);
 
     const handleExportPDF = useCallback(async () => {
         const input = reportRef.current;
@@ -113,8 +141,9 @@ export default function BudgetOverrunReport({ groupedBudgets, tags, isLoading, o
             y += groupImgHeight + 2;
         }
 
-        const footerElement = footerRef.current;
-        if (footerElement) await renderElement(footerElement);
+        for (const footerEl of input.querySelectorAll('.report-footer')) {
+            await renderElement(footerEl);
+        }
 
         if (buttons) buttons.style.display = 'flex';
         const now = new Date();
@@ -215,9 +244,7 @@ export default function BudgetOverrunReport({ groupedBudgets, tags, isLoading, o
                                 </TableRow>
                             </TableHeader>
                             {overrunGroups.map(group => {
-                                const groupPercentage = group.groupTotalOrcado > 0
-                                    ? (group.groupTotalGasto / group.groupTotalOrcado) * 100
-                                    : 0;
+                                const groupPercentage = percentOf(group.groupTotalGasto, group.groupTotalOrcado);
                                 return (
                                     <TableBody key={group.parentTag.id} className="overrun-group">
                                         <TableRow className={`${forPrint ? 'bg-white' : 'bg-[#eff4ff]'} hover:bg-[#eff4ff]`}>
@@ -240,7 +267,7 @@ export default function BudgetOverrunReport({ groupedBudgets, tags, isLoading, o
                                             <TableCell className="text-right font-bold text-[#ba1a1a] align-top">{groupPercentage.toFixed(1)}%</TableCell>
                                         </TableRow>
                                         {group.items.map(item => {
-                                            const itemPercentage = item.orcado > 0 ? (item.gasto / item.orcado) * 100 : 0;
+                                            const itemPercentage = percentOf(item.gasto, item.orcado);
                                             return (
                                                 <TableRow key={item.id}>
                                                     <TableCell className="pl-8">
@@ -266,16 +293,49 @@ export default function BudgetOverrunReport({ groupedBudgets, tags, isLoading, o
                                     </TableBody>
                                 );
                             })}
-                            <TableFooter ref={footerRef}>
+                            <TableFooter>
                                 <TableRow className={`${forPrint ? 'bg-white' : 'bg-[#f8f9ff]'} hover:bg-[#f8f9ff] footer report-footer`}>
-                                    <TableCell className="font-bold text-[#0b1c30]">Total Geral</TableCell>
+                                    <TableCell className="font-bold text-[#0b1c30]">Total Extrapolado</TableCell>
                                     <TableCell className="text-right font-bold text-[#0b1c30]">{formatCurrency(grandTotals.orcado)}</TableCell>
                                     <TableCell className="text-right font-bold text-[#0b1c30]">{formatCurrency(grandTotals.gasto)}</TableCell>
                                     <TableCell className="text-right font-bold text-[#ba1a1a]">{formatCurrency(grandTotals.excesso)}</TableCell>
                                     <TableCell className="text-right font-bold text-[#ba1a1a]">
-                                        {(grandTotals.orcado > 0 ? (grandTotals.gasto / grandTotals.orcado) * 100 : 0).toFixed(1)}%
+                                        {percentOf(grandTotals.gasto, grandTotals.orcado).toFixed(1)}%
                                     </TableCell>
                                 </TableRow>
+                                {reconciliation.hasOthers && (
+                                    <>
+                                        <TableRow className={`${forPrint ? 'bg-white' : 'bg-[#f8f9ff]'} hover:bg-[#f8f9ff] footer report-footer`}>
+                                            <TableCell className="font-medium text-[#3c4a42]">
+                                                Demais categorias (dentro do orçamento)
+                                            </TableCell>
+                                            <TableCell className="text-right text-[#3c4a42]">{formatCurrency(reconciliation.othersOrcado)}</TableCell>
+                                            <TableCell className="text-right text-[#3c4a42]">{formatCurrency(reconciliation.othersGasto)}</TableCell>
+                                            <TableCell className="text-right font-medium text-[#006c49]">{formatCurrency(reconciliation.othersExcesso)}</TableCell>
+                                            <TableCell className="text-right text-[#006c49]">
+                                                {percentOf(reconciliation.othersGasto, reconciliation.othersOrcado).toFixed(1)}%
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow className={`${forPrint ? 'bg-white' : 'bg-[#f8f9ff]'} hover:bg-[#f8f9ff] footer report-footer`}>
+                                            <TableCell className="font-bold text-[#0b1c30]">
+                                                Total Geral (todas as categorias)
+                                                <div className="text-xs font-normal text-[#6c7a71] mt-0.5">
+                                                    Disponível: <span className={reconciliation.totalDisponivel < 0 ? 'text-[#ba1a1a] font-medium' : 'text-[#006c49] font-medium'}>
+                                                        {formatCurrency(reconciliation.totalDisponivel)}
+                                                    </span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right font-bold text-[#0b1c30] align-top">{formatCurrency(reconciliation.totalOrcado)}</TableCell>
+                                            <TableCell className="text-right font-bold text-[#0b1c30] align-top">{formatCurrency(reconciliation.totalGasto)}</TableCell>
+                                            <TableCell className={`text-right font-bold align-top ${reconciliation.totalExcesso > 0 ? 'text-[#ba1a1a]' : 'text-[#006c49]'}`}>
+                                                {formatCurrency(reconciliation.totalExcesso)}
+                                            </TableCell>
+                                            <TableCell className={`text-right font-bold align-top ${reconciliation.totalExcesso > 0 ? 'text-[#ba1a1a]' : 'text-[#006c49]'}`}>
+                                                {percentOf(reconciliation.totalGasto, reconciliation.totalOrcado).toFixed(1)}%
+                                            </TableCell>
+                                        </TableRow>
+                                    </>
+                                )}
                             </TableFooter>
                         </Table>
                     ) : (

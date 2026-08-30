@@ -79,8 +79,9 @@ export async function generatePdfBlobUrl(elementId) {
         y += itemImgHeight + 2;
     }
 
-    const footerEl = element.querySelector('.report-footer');
-    if (footerEl) {
+    // Um relatório pode ter mais de uma linha de rodapé (ex.: totais + reconciliação).
+    const footerEls = element.querySelectorAll('.report-footer');
+    for (const footerEl of footerEls) {
         if (y > pageHeight - MARGIN - 30) {
             pdf.addPage();
             y = MARGIN;

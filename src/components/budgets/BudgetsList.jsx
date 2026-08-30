@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, MoreVertical, Tag as TagIconLucide, AlertTriangle, TrendingUp, TrendingDown, Target } from "lucide-react";
+import { Edit, Trash2, MoreVertical, Tag as TagIconLucide, AlertTriangle, TrendingUp, TrendingDown, Target, Ban, Infinity as InfinityIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import {
@@ -30,7 +30,8 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import BudgetGauge from "@/components/ui/BudgetGauge";
 
 import * as LucideIcons from "lucide-react";
@@ -83,39 +84,33 @@ export default function BudgetsList({
   isLoading,
   onEditBudget,
   onDeleteBudget,
+  onRequestEndBudget,
   currentPeriodFilter
 }) {
   const navigate = useNavigate();
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const isBudgetClosed = (budget) => !!budget.end_date && budget.end_date < todayStr;
 
   const handleSpentAmountClick = (tagId) => {
     if (!tagId) return;
 
     let periodParams = '';
 
-    if (currentPeriodFilter && currentPeriodFilter !== 'all') {
+    if (currentPeriodFilter && currentPeriodFilter.period !== 'all') {
       const today = new Date();
       let periodStart, periodEnd;
 
-      switch (currentPeriodFilter) {
-        case "current_month":
-          periodStart = new Date(today.getFullYear(), today.getMonth(), 1);
-          periodEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      switch (currentPeriodFilter.period) {
+        case "specific_month":
+          periodStart = new Date(currentPeriodFilter.year, currentPeriodFilter.month, 1);
+          periodEnd = new Date(currentPeriodFilter.year, currentPeriodFilter.month + 1, 0);
           break;
-        case "last_month":
-          const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-          periodStart = lastMonth;
-          periodEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-          break;
-        case "two_months_ago":
-          const twoMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 2, 1);
-          periodStart = twoMonthsAgo;
-          periodEnd = new Date(today.getFullYear(), today.getMonth() - 1, 0);
-          break;
-        case "current_quarter":
+        case "current_quarter": {
           const quarter = Math.floor(today.getMonth() / 3);
           periodStart = new Date(today.getFullYear(), quarter * 3, 1);
           periodEnd = new Date(today.getFullYear(), quarter * 3 + 3, 0);
           break;
+        }
         case "this_year":
           periodStart = new Date(today.getFullYear(), 0, 1);
           periodEnd = new Date(today.getFullYear(), 11, 31);
@@ -257,7 +252,24 @@ export default function BudgetsList({
                               >
                                 <ItemIconComponent className="w-full h-full text-white" />
                               </div>
-                              {budget.tagName}
+                              <div className="flex flex-col">
+                                <span>{budget.tagName}</span>
+                                {!budget.isVirtual && (
+                                  <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">
+                                    {isBudgetClosed(budget) ? (
+                                      <>
+                                        <Ban className="w-3 h-3" />
+                                        Encerrado em {format(parseISO(budget.end_date), 'MMM/yy', { locale: ptBR })}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <InfinityIcon className="w-3 h-3 text-primary-v2" />
+                                        Vigente desde {format(parseISO(budget.start_date), 'MMM/yy', { locale: ptBR })}
+                                      </>
+                                    )}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-body-sm text-body-sm text-on-background">{formatCurrency(individualTotal)}</TableCell>
@@ -290,6 +302,12 @@ export default function BudgetsList({
                                   <Edit className="w-4 h-4 mr-2" />
                                   Editar
                                 </DropdownMenuItem>
+                                {!budget.isVirtual && !isBudgetClosed(budget) && (
+                                  <DropdownMenuItem onClick={() => onRequestEndBudget(budget)}>
+                                    <Ban className="w-4 h-4 mr-2" />
+                                    Encerrar Vigência
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => onDeleteBudget(budget.id)} className="text-red-600 hover:!text-red-600 hover:!bg-red-50">
                                   <Trash2 className="w-4 h-4 mr-2" />

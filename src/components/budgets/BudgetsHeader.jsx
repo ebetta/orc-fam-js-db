@@ -3,6 +3,7 @@ import React from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TrendingUp, TrendingDown, DollarSign, X } from "lucide-react";
 import { motion } from "framer-motion";
+import { MONTH_NAMES_PT, getYearOptions } from "@/utils";
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('pt-BR', {
@@ -96,17 +97,40 @@ export function BudgetsHeroCard({ summaryTotals, isLoading }) {
 
 /* ── Filters Bar ─────────────────────────────────────────────────────────── */
 export function BudgetsFiltersBar({ filters, onFiltersChange, tags, budgetsCount }) {
+  const today = new Date();
+  const isDefaultMonth =
+    filters.period === "specific_month" &&
+    filters.month === today.getMonth() &&
+    filters.year === today.getFullYear();
+
   const hasActiveFilters =
-    filters.period !== "current_month" ||
+    !isDefaultMonth ||
     filters.tagId !== "all" ||
     filters.status !== "all";
 
   const handleClearFilters = () => {
+    const now = new Date();
     onFiltersChange(() => ({
-      period: "current_month",
+      period: "specific_month",
+      month: now.getMonth(),
+      year: now.getFullYear(),
       tagId: "all",
       status: "all",
     }));
+  };
+
+  const handlePeriodModeChange = (mode) => {
+    if (mode === "specific_month") {
+      const now = new Date();
+      onFiltersChange(prev => ({
+        ...prev,
+        period: mode,
+        month: prev.month ?? now.getMonth(),
+        year: prev.year ?? now.getFullYear(),
+      }));
+    } else {
+      onFiltersChange(prev => ({ ...prev, period: mode }));
+    }
   };
 
   return (
@@ -116,19 +140,41 @@ export function BudgetsFiltersBar({ filters, onFiltersChange, tags, budgetsCount
       transition={{ duration: 0.4, delay: 0.1 }}
     >
       <div className="glass-card p-4 rounded-2xl flex flex-wrap gap-4 items-center shadow-sm">
-        {/* Period */}
+        {/* Period mode */}
         <select
           value={filters.period}
-          onChange={(e) => onFiltersChange(prev => ({ ...prev, period: e.target.value }))}
+          onChange={(e) => handlePeriodModeChange(e.target.value)}
           className="bg-surface-container-low border-none rounded-xl py-3 px-4 font-label-md text-label-md text-on-surface-variant focus:ring-2 focus:ring-secondary focus:outline-none cursor-pointer"
         >
-          <option value="current_month">Mês Atual</option>
-          <option value="last_month">Mês Anterior</option>
-          <option value="two_months_ago">Mês Retrasado</option>
+          <option value="specific_month">Mês</option>
           <option value="current_quarter">Trimestre Atual</option>
           <option value="this_year">Este Ano</option>
           <option value="all">Todos os Períodos</option>
         </select>
+
+        {/* Mês / Ano, apenas no modo "Mês" */}
+        {filters.period === "specific_month" && (
+          <>
+            <select
+              value={filters.month}
+              onChange={(e) => onFiltersChange(prev => ({ ...prev, month: Number(e.target.value) }))}
+              className="bg-surface-container-low border-none rounded-xl py-3 px-4 font-label-md text-label-md text-on-surface-variant focus:ring-2 focus:ring-secondary focus:outline-none cursor-pointer"
+            >
+              {MONTH_NAMES_PT.map((name, idx) => (
+                <option key={idx} value={idx}>{name}</option>
+              ))}
+            </select>
+            <select
+              value={filters.year}
+              onChange={(e) => onFiltersChange(prev => ({ ...prev, year: Number(e.target.value) }))}
+              className="bg-surface-container-low border-none rounded-xl py-3 px-4 font-label-md text-label-md text-on-surface-variant focus:ring-2 focus:ring-secondary focus:outline-none cursor-pointer"
+            >
+              {getYearOptions(filters.year).map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </>
+        )}
 
         {/* Tag */}
         <select

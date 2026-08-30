@@ -5,12 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { X, Save, Target as TargetIcon, CalendarIcon as CalendarIconLucide, Check, ChevronsUpDown } from "lucide-react"; // Adicionado Check, ChevronsUpDown
+import { Badge } from "@/components/ui/badge";
+import { X, Save, Target as TargetIcon, Check, ChevronsUpDown, Infinity as InfinityIcon } from "lucide-react"; // Adicionado Check, ChevronsUpDown
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
-import { getTagPath, isLeafTag } from "@/utils";
+import { format, parseISO, endOfMonth } from "date-fns";
+import { getTagPath, isLeafTag, MONTH_NAMES_PT, getYearOptions } from "@/utils";
 
 const budgetPeriods = [
   { value: "monthly", label: "Mensal" },
@@ -20,56 +21,42 @@ const budgetPeriods = [
 ];
 
 export default function BudgetForm({ budget, tags, onSave, onCancel }) {
-  const initialStartDate = budget?.start_date ? parseISO(budget.start_date) : startOfMonth(new Date());
-  const initialEndDate = budget?.end_date ? parseISO(budget.end_date) : endOfMonth(new Date());
+  // Um orçamento sem end_date (ou com end_date ainda no futuro) está vigente: só se encerra
+  // quando um novo orçamento é lançado para a mesma tag (fecha o anterior automaticamente) ou
+  // quando é formalmente encerrado. Editar um orçamento já encerrado permite corrigir as duas datas.
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const isEditingClosedBudget = !!(budget && budget.end_date && budget.end_date < todayStr);
+  const initialStartDate = budget?.start_date ? parseISO(budget.start_date) : new Date();
 
   const [formData, setFormData] = useState({
     tag_id: budget?.tag_id || (tags.length > 0 ? tags[0].id : ""),
     amount: budget?.amount || 0,
     period: budget?.period || "monthly",
     start_date: format(initialStartDate, "yyyy-MM-dd"),
-    end_date: format(initialEndDate, "yyyy-MM-dd"),
+    end_date: budget?.end_date || null,
     is_active: budget?.is_active !== false
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [dateRange, setDateRange] = useState({
-    from: initialStartDate,
-    to: initialEndDate
-  });
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [tagSearchValue, setTagSearchValue] = useState("");
 
 
   useEffect(() => {
-    const startDate = budget?.start_date ? parseISO(budget.start_date) : startOfMonth(new Date());
-    const endDate = budget?.end_date ? parseISO(budget.end_date) : endOfMonth(new Date());
-
+    const startDate = budget?.start_date ? parseISO(budget.start_date) : new Date();
     const initialTagId = budget?.tag_id || (tags.length > 0 ? tags[0].id : "");
     setFormData({
       tag_id: initialTagId,
       amount: budget?.amount || 0,
       period: budget?.period || "monthly",
       start_date: format(startDate, "yyyy-MM-dd"),
-      end_date: format(endDate, "yyyy-MM-dd"),
+      end_date: budget?.end_date || null,
       is_active: budget?.is_active !== false
     });
-    setDateRange({ from: startDate, to: endDate });
 
     const currentTag = tags.find(t => t.id === initialTagId);
     setTagSearchValue(currentTag ? getTagPath(currentTag.id, tags) : "");
 
   }, [budget, tags]);
-
-  useEffect(() => {
-    if (formData.period === "monthly" && !budget) { // Só ajustar para 'monthly' se for novo ou período mudou para mensal
-      const currentMonthStart = startOfMonth(new Date());
-      const currentMonthEnd = endOfMonth(new Date());
-      setDateRange({ from: currentMonthStart, to: currentMonthEnd });
-      handleInputChange("start_date", format(currentMonthStart, "yyyy-MM-dd"));
-      handleInputChange("end_date", format(currentMonthEnd, "yyyy-MM-dd"));
-    }
-    // Lógica para outros períodos pode ser adicionada aqui
-  }, [formData.period, budget]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -99,10 +86,12 @@ export default function BudgetForm({ budget, tags, onSave, onCancel }) {
     }));
   };
 
-  const handleDateRangeChange = (range) => {
-    setDateRange(range);
-    if (range?.from) handleInputChange("start_date", format(range.from, "yyyy-MM-dd"));
-    if (range?.to) handleInputChange("end_date", format(range.to, "yyyy-MM-dd"));
+  const handleStartMonthYearChange = (month, year) => {
+    handleInputChange("start_date", format(new Date(year, month, 1), "yyyy-MM-dd"));
+  };
+
+  const handleEndMonthYearChange = (month, year) => {
+    handleInputChange("end_date", format(endOfMonth(new Date(year, month, 1)), "yyyy-MM-dd"));
   };
 
   const leafTags = tags.filter(tag => isLeafTag(tag, tags));
@@ -216,39 +205,91 @@ export default function BudgetForm({ budget, tags, onSave, onCancel }) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="date_range" className="text-sm font-medium text-gray-700">
-                Vigência do Orçamento *
+              <Label className="text-sm font-medium text-gray-700">
+                {isEditingClosedBudget ? "Início da Vigência *" : "Vigente a partir de *"}
               </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="h-12 w-full justify-start text-left font-normal border-gray-200 hover:border-orange-500 hover:bg-orange-50 rounded-xl transition-all shadow-sm"
-                  >
-                    <CalendarIconLucide className="mr-2 h-4 w-4 text-orange-600" />
-                    {dateRange?.from ? (
-                      dateRange.to ? (
-                        <>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>
-                      ) : (format(dateRange.from, "dd/MM/yyyy"))
-                    ) : (<span className="text-gray-400">Selecione o período de vigência</span>)}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 border-0 shadow-xl rounded-xl">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange?.from}
-                    selected={dateRange}
-                    onSelect={handleDateRangeChange}
-                    numberOfMonths={2}
-                    className="rounded-xl border border-gray-100"
-                  />
-                </PopoverContent>
-              </Popover>
+              <div className="flex gap-2">
+                <Select
+                  value={String(parseISO(formData.start_date).getMonth())}
+                  onValueChange={(v) => handleStartMonthYearChange(Number(v), parseISO(formData.start_date).getFullYear())}
+                >
+                  <SelectTrigger className="h-12 flex-[3] border-gray-200 hover:border-orange-500 rounded-xl transition-all shadow-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTH_NAMES_PT.map((name, idx) => (
+                      <SelectItem key={idx} value={String(idx)}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={String(parseISO(formData.start_date).getFullYear())}
+                  onValueChange={(v) => handleStartMonthYearChange(parseISO(formData.start_date).getMonth(), Number(v))}
+                >
+                  <SelectTrigger className="h-12 flex-[2] border-gray-200 hover:border-orange-500 rounded-xl transition-all shadow-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getYearOptions(parseISO(formData.start_date).getFullYear()).map(y => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
+            {isEditingClosedBudget ? (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">
+                  Término da Vigência *
+                </Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={String(parseISO(formData.end_date).getMonth())}
+                    onValueChange={(v) => handleEndMonthYearChange(Number(v), parseISO(formData.end_date).getFullYear())}
+                  >
+                    <SelectTrigger className="h-12 flex-[3] border-gray-200 hover:border-orange-500 rounded-xl transition-all shadow-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTH_NAMES_PT.map((name, idx) => (
+                        <SelectItem key={idx} value={String(idx)}>{name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={String(parseISO(formData.end_date).getFullYear())}
+                    onValueChange={(v) => handleEndMonthYearChange(parseISO(formData.end_date).getMonth(), Number(v))}
+                  >
+                    <SelectTrigger className="h-12 flex-[2] border-gray-200 hover:border-orange-500 rounded-xl transition-all shadow-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getYearOptions(parseISO(formData.end_date).getFullYear()).map(y => (
+                        <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 p-3 bg-gray-50/80 rounded-xl border border-gray-100">
+                <InfinityIcon className="w-4 h-4 text-orange-500 shrink-0" />
+                <p className="text-xs text-gray-500">
+                  Sem data de término: este orçamento continua valendo até que um novo seja lançado para a mesma tag, ou até ser encerrado manualmente.
+                </p>
+              </div>
+            )}
           </div>
+
+          {isEditingClosedBudget && (
+            <div className="flex items-center gap-2 -mt-2">
+              <Badge variant="outline" className="border-gray-300 text-gray-500">Orçamento encerrado</Badge>
+              <p className="text-xs text-gray-500">Você pode corrigir as datas deste orçamento histórico, se necessário.</p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between p-4 bg-gray-50/80 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
             <div className="space-y-0.5">

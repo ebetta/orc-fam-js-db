@@ -23,8 +23,8 @@ export default function BudgetOverview({ budgets, isLoading }) {
 
   const currentMonthBudgets = activeBudgets.filter(budget => {
     const startDate = new Date(budget.start_date);
-    const endDate = new Date(budget.end_date);
-    return startDate <= currentDate && endDate >= currentDate;
+    const endDate = budget.end_date ? new Date(budget.end_date) : null;
+    return startDate <= currentDate && (!endDate || endDate >= currentDate);
   });
 
   const getBudgetStatus = (budget) => {

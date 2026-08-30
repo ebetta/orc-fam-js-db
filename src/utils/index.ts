@@ -39,3 +39,18 @@ export function isLeafTag(tag: Tag, allTags: Tag[]): boolean {
 export function createPageUrl(pageName: string) {
     return '/' + pageName.toLowerCase().replace(/ /g, '-');
 }
+
+export const MONTH_NAMES_PT = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
+// Gera as opções de ano para seletores de mês/ano, sempre incluindo o ano informado
+// (relevante ao editar orçamentos antigos fora da janela padrão).
+export function getYearOptions(includeYear?: number): number[] {
+  const base = new Date().getFullYear();
+  const years = new Set<number>();
+  for (let y = base - 10; y <= base + 3; y++) years.add(y);
+  if (includeYear) years.add(includeYear);
+  return Array.from(years).sort((a, b) => a - b);
+}
