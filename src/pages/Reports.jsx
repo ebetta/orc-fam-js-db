@@ -8,6 +8,7 @@ import ReportsHeader from "../components/reports/ReportsHeader";
 import ReportFilters from "../components/reports/ReportFilters";
 import ExpensesByTagReport from "../components/reports/ExpensesByTagReport";
 import BudgetReport from "../components/reports/BudgetReport";
+import BudgetOverrunReport from "../components/reports/BudgetOverrunReport";
 import { generatePdfBlobUrl } from "@/lib/pdfGenerator";
 import { startOfMonth, endOfMonth, parseISO, max, min, format, differenceInCalendarMonths, differenceInCalendarWeeks, differenceInCalendarYears } from "date-fns";
 
@@ -246,11 +247,17 @@ export default function ReportsPage() {
     setGroupedBudgetsForAccordion(processedGroups);
   }, [allBudgets, allTransactions, allTags, isLoading, filters.period, calculateSpentAmountForPeriod]);
 
+  const reportTypeToActiveReport = {
+    expenses_by_tag: 'expenses',
+    budget: 'budget',
+    budget_overrun: 'budget_overrun',
+  };
+
   const handleGenerateReport = () => {
     setPdfUrl(null);
     setModalSize('normal');
     setGenerationKey(k => k + 1);
-    setActiveReport(filters.reportType === 'expenses_by_tag' ? 'expenses' : 'budget');
+    setActiveReport(reportTypeToActiveReport[filters.reportType] || 'expenses');
     setIsGeneratingPdf(true);
   };
 
@@ -269,7 +276,12 @@ export default function ReportsPage() {
     if (!activeReport || isLoading) return;
     const generate = async () => {
       try {
-        const elementId = activeReport === 'expenses' ? 'hidden-expenses-report' : 'hidden-budget-report';
+        const elementIdMap = {
+          expenses: 'hidden-expenses-report',
+          budget: 'hidden-budget-report',
+          budget_overrun: 'hidden-budget-overrun-report',
+        };
+        const elementId = elementIdMap[activeReport] || 'hidden-expenses-report';
         const url = await generatePdfBlobUrl(elementId);
         setPdfUrl(url);
       } catch (error) {
@@ -333,6 +345,16 @@ export default function ReportsPage() {
             />
           </div>
         )}
+        {activeReport === 'budget_overrun' && (
+          <div id="hidden-budget-overrun-report">
+            <BudgetOverrunReport
+              groupedBudgets={groupedBudgetsForAccordion}
+              tags={allTags}
+              isLoading={false}
+              forPrint={true}
+            />
+          </div>
+        )}
       </div>
 
       {/* PDF Viewer Modal */}
@@ -360,7 +382,11 @@ export default function ReportsPage() {
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-3 border-b border-[#bbcabf] bg-[#eff4ff] flex-shrink-0">
                 <h2 className="text-[#0b1c30] font-semibold text-base font-sans">
-                  {activeReport === 'expenses' ? 'Relatório de Despesas' : 'Relatório de Orçamento'}
+                  {activeReport === 'expenses'
+                    ? 'Relatório de Despesas'
+                    : activeReport === 'budget_overrun'
+                      ? 'Relatório de Orçamento Extrapolado'
+                      : 'Relatório de Orçamento'}
                 </h2>
                 <div className="flex items-center gap-1">
                   <Button

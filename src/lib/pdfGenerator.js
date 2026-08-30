@@ -57,7 +57,7 @@ export async function generatePdfBlobUrl(elementId) {
         y = addTableHeader(pdf, y);
     }
 
-    const groupEls = element.querySelectorAll('.budget-group');
+    const groupEls = element.querySelectorAll('.budget-group, .overrun-group');
     const rowEls = element.querySelectorAll('.expense-row');
 
     const items = groupEls.length > 0 ? groupEls : rowEls;

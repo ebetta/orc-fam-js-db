@@ -137,6 +137,10 @@ export default function ReportFilters({ allTags, filters, onFiltersChange, onGen
                                         <RadioGroupItem value="budget" id="budget_report" />
                                         <Label htmlFor="budget_report" className="text-[#0b1c30] text-sm cursor-pointer">Orçamento</Label>
                                     </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="budget_overrun" id="budget_overrun_report" />
+                                        <Label htmlFor="budget_overrun_report" className="text-[#0b1c30] text-sm cursor-pointer">Extrapolado</Label>
+                                    </div>
                                 </RadioGroup>
                             </div>
                             
