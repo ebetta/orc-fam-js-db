@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { X, Save, Target as TargetIcon, Check, ChevronsUpDown, Infinity as InfinityIcon } from "lucide-react"; // Adicionado Check, ChevronsUpDown
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { format, parseISO, endOfMonth } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { getTagPath, isLeafTag, MONTH_NAMES_PT, getYearOptions } from "@/utils";
 
 const budgetPeriods = [
@@ -26,7 +26,7 @@ export default function BudgetForm({ budget, tags, onSave, onCancel }) {
   // quando é formalmente encerrado. Editar um orçamento já encerrado permite corrigir as duas datas.
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const isEditingClosedBudget = !!(budget && budget.end_date && budget.end_date < todayStr);
-  const initialStartDate = budget?.start_date ? parseISO(budget.start_date) : new Date();
+  const initialStartDate = budget?.start_date ? parseISO(budget.start_date) : startOfMonth(new Date());
 
   const [formData, setFormData] = useState({
     tag_id: budget?.tag_id || (tags.length > 0 ? tags[0].id : ""),
@@ -42,7 +42,7 @@ export default function BudgetForm({ budget, tags, onSave, onCancel }) {
 
 
   useEffect(() => {
-    const startDate = budget?.start_date ? parseISO(budget.start_date) : new Date();
+    const startDate = budget?.start_date ? parseISO(budget.start_date) : startOfMonth(new Date());
     const initialTagId = budget?.tag_id || (tags.length > 0 ? tags[0].id : "");
     setFormData({
       tag_id: initialTagId,
