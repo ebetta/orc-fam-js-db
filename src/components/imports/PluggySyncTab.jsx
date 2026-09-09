@@ -33,6 +33,11 @@ const PERIOD_OPTIONS = [
 const formatCurrency = (amount, currency = "BRL") =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(amount || 0);
 
+// No Pluggy, o saldo de um cartão é o valor devido (positivo); aqui um cartão
+// carrega saldo negativo, então a sugestão é o oposto.
+const expectedBalance = (pluggyAccount) =>
+  pluggyAccount.type === 'CREDIT' ? -pluggyAccount.balance : pluggyAccount.balance;
+
 const formatDateTime = (value) =>
   value ? format(new Date(value), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : "nunca";
 
@@ -44,10 +49,28 @@ export default function PluggySyncTab({ accounts, onFinish }) {
   const [savingAccountId, setSavingAccountId] = useState(null);
   const [period, setPeriod] = useState("auto");
   const [error, setError] = useState("");
+  const [balanceInputs, setBalanceInputs] = useState({});
+  const [balanceNotice, setBalanceNotice] = useState({});
 
   useEffect(() => {
     loadConnection();
   }, []);
+
+  // Sugere o saldo do Pluggy só na primeira vez que a conta aparece — não
+  // sobrescreve o que o usuário já está digitando quando a tela recarrega.
+  useEffect(() => {
+    setBalanceInputs(prev => {
+      let changed = false;
+      const next = { ...prev };
+      for (const acc of pluggyAccounts) {
+        if (acc.local_account_id && next[acc.id] === undefined) {
+          next[acc.id] = expectedBalance(acc).toFixed(2);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [pluggyAccounts]);
 
   const loadConnection = async () => {
     setIsLoading(true);
@@ -107,27 +130,35 @@ export default function PluggySyncTab({ accounts, onFinish }) {
     setSavingAccountId(null);
   };
 
-  const handleReconcile = async (pluggyAccount) => {
-    const diff = pluggyAccount.difference;
-    const texto = formatCurrency(Math.abs(diff), pluggyAccount.currency_code);
-    const confirmado = window.confirm(
-      `Lançar um ajuste de ${texto} em "${pluggyAccount.local_account_name}" para o saldo do app ` +
-      `bater com o do Pluggy?\n\nApp: ${formatCurrency(pluggyAccount.local_balance, pluggyAccount.currency_code)}\n` +
-      `Pluggy: ${formatCurrency(pluggyAccount.type === 'CREDIT' ? -pluggyAccount.balance : pluggyAccount.balance, pluggyAccount.currency_code)}`
-    );
-    if (!confirmado) return;
+  const handleUseSuggestion = (pluggyAccount) => {
+    setBalanceInputs(prev => ({ ...prev, [pluggyAccount.id]: expectedBalance(pluggyAccount).toFixed(2) }));
+  };
+
+  const handleSaveRealBalance = async (pluggyAccount) => {
+    const raw = (balanceInputs[pluggyAccount.id] ?? "").toString().replace(",", ".");
+    const value = parseFloat(raw);
+    if (Number.isNaN(value)) {
+      setError("Informe um saldo válido.");
+      return;
+    }
 
     setSavingAccountId(pluggyAccount.id);
     setError("");
+    setBalanceNotice(prev => ({ ...prev, [pluggyAccount.id]: null }));
     try {
-      const { error: reconcileError } = await api.post('pluggy/reconcile', {
-        accountId: pluggyAccount.local_account_id
+      const { data, error: reconcileError } = await api.post('pluggy/reconcile', {
+        accountId: pluggyAccount.local_account_id,
+        targetBalance: value
       });
       if (reconcileError) throw new Error(reconcileError.message);
+      setBalanceNotice(prev => ({
+        ...prev,
+        [pluggyAccount.id]: data.adjusted ? "Saldo atualizado." : "O saldo já estava correto."
+      }));
       await loadConnection();
     } catch (err) {
-      console.error("Erro ao conciliar:", err);
-      setError(err.message || "Não foi possível conciliar o saldo.");
+      console.error("Erro ao salvar o saldo real:", err);
+      setError(err.message || "Não foi possível salvar o saldo real.");
     }
     setSavingAccountId(null);
   };
@@ -339,7 +370,7 @@ export default function PluggySyncTab({ accounts, onFinish }) {
                       Última sincronização: {formatDateTime(pluggyAccount.last_sync_at)}
                     </p>
 
-                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-1.5">
+                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-2">
                       <div className="flex justify-between text-xs">
                         <span className="text-gray-600">Saldo no app</span>
                         <span className="font-medium text-slate-900">
@@ -347,44 +378,56 @@ export default function PluggySyncTab({ accounts, onFinish }) {
                         </span>
                       </div>
                       <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">Saldo no Pluggy</span>
+                        <span className="text-gray-600">Sugestão do Pluggy</span>
                         <span className="font-medium text-slate-900">
-                          {formatCurrency(
-                            pluggyAccount.type === 'CREDIT' ? -pluggyAccount.balance : pluggyAccount.balance,
-                            pluggyAccount.currency_code
-                          )}
+                          {formatCurrency(expectedBalance(pluggyAccount), pluggyAccount.currency_code)}
                         </span>
                       </div>
-                      {Math.abs(pluggyAccount.difference ?? 0) < 0.01 ? (
-                        <p className="flex items-center gap-1.5 text-xs text-emerald-700 pt-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Saldos alinhados
+
+                      <div className="space-y-1 pt-1">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-medium text-gray-600">
+                            Saldo real (o que aparece no app do banco)
+                          </Label>
+                          <button
+                            type="button"
+                            onClick={() => handleUseSuggestion(pluggyAccount)}
+                            className="text-xs text-indigo-600 hover:underline"
+                          >
+                            Usar sugestão
+                          </button>
+                        </div>
+                        <p className="text-xs text-amber-700">
+                          Confira no app do banco antes de salvar — logo após uma compra recente, a
+                          sugestão do Pluggy pode estar adiantada em relação às transações listadas.
                         </p>
-                      ) : (
-                        <div className="space-y-2 pt-1">
-                          <p className="text-xs text-amber-700">
-                            Concilie apenas se a diferença continuar depois de sincronizar. Logo após
-                            uma compra recente ela costuma ser só o retrato do Pluggy adiantado em
-                            relação à lista de transações, e some sozinha na próxima coleta —
-                            conciliar agora criaria uma duplicata.
-                          </p>
-                          <div className="flex items-center justify-between gap-3">
-                          <span className="text-xs text-amber-700">
-                            Diferença de {formatCurrency(Math.abs(pluggyAccount.difference), pluggyAccount.currency_code)}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={balanceInputs[pluggyAccount.id] ?? ''}
+                            onChange={(e) => setBalanceInputs(prev => ({ ...prev, [pluggyAccount.id]: e.target.value }))}
+                            disabled={savingAccountId === pluggyAccount.id}
+                            className="h-8 text-xs max-w-[10rem]"
+                          />
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleReconcile(pluggyAccount)}
+                            onClick={() => handleSaveRealBalance(pluggyAccount)}
                             disabled={savingAccountId === pluggyAccount.id}
-                            className="h-7 text-xs"
+                            className="h-8 text-xs"
                           >
                             <Scale className="w-3.5 h-3.5 mr-1.5" />
-                            Conciliar
+                            Salvar saldo real
                           </Button>
-                          </div>
                         </div>
-                      )}
+                        {balanceNotice[pluggyAccount.id] && (
+                          <p className="flex items-center gap-1.5 text-xs text-emerald-700 pt-0.5">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {balanceNotice[pluggyAccount.id]}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -437,7 +480,8 @@ export default function PluggySyncTab({ accounts, onFinish }) {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• A sincronização traz tudo que o Pluggy já coletou — o que for mais recente que a última coleta ainda não estará lá</li>
-            <li>• Transações já importadas são ignoradas automaticamente pelo ID do Pluggy</li>
+              <li>• Transações já importadas são ignoradas automaticamente pelo ID do Pluggy</li>
+              <li>• Pode lançar à mão sem medo de duplicar: um lançamento manual com o mesmo valor e data próxima (até 2 dias) é reconhecido como a mesma transação, em vez de importado de novo</li>
               <li>• Compras no cartão entram como despesa; pagamentos de fatura, como receita</li>
               <li>• Compras da fatura aberta contam no saldo e são reescritas a cada sincronização, porque o banco ainda pode alterá-las</li>
               <li>• Tags são atribuídas automaticamente baseadas na descrição</li>

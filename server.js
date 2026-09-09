@@ -455,7 +455,7 @@ app.post('/api/pluggy/sync', async (req, res) => {
 
     const { rows: tags } = await pool.query('SELECT id, name FROM tags WHERE user_id = $1', [MOCK_USER_ID]);
 
-    const results = { total: 0, imported: 0, skipped: 0, errors: 0, pending: 0, details: [] };
+    const results = { total: 0, imported: 0, adopted: 0, skipped: 0, errors: 0, pending: 0, details: [] };
     const endDate = to || toDateOnly(Date.now());
 
     for (const account of accounts) {
@@ -521,6 +521,58 @@ app.post('/api/pluggy/sync', async (req, res) => {
         const isPending = tx.status === 'PENDING';
 
         try {
+          // Transferência entre contas próprias: se já existe um lançamento manual de
+          // transferência com o mesmo valor e data próxima envolvendo esta conta, o Pluggy
+          // está relatando o mesmo movimento pelo lado do banco — não duplicar.
+          const { rows: manualTransfers } = await pool.query(
+            `SELECT id FROM transactions
+               WHERE user_id = $1 AND transaction_type = 'transfer' AND amount = $2
+                 AND transaction_date BETWEEN $3::date - INTERVAL '2 days' AND $3::date + INTERVAL '2 days'
+                 AND (account_id = $4 OR destination_account_id = $4)
+               LIMIT 1`,
+            [MOCK_USER_ID, amount, date, account.id]
+          );
+
+          if (manualTransfers.length > 0) {
+            results.skipped++;
+            results.details.push({ status: 'skipped', description, amount, date, reason: 'Já coberta por transferência manual entre contas' });
+            continue;
+          }
+
+          // Lançamento manual (sem external_id) com o mesmo valor, mesma conta e data
+          // próxima (±2 dias): é o mesmo movimento que você já registrou na mão. Em vez
+          // de duplicar, adotamos o lançamento manual — ele ganha o external_id do Pluggy
+          // (fica reconhecido nas próximas sincronizações) e mantém a descrição/tag que
+          // você já colocou.
+          const expectedType = tx.type === 'DEBIT' ? 'expense' : 'income';
+          const { rows: manualMatches } = await pool.query(
+            `SELECT id FROM transactions
+               WHERE user_id = $1 AND account_id = $2 AND transaction_type = $3 AND amount = $4
+                 AND external_id IS NULL
+                 AND transaction_date BETWEEN $5::date - INTERVAL '2 days' AND $5::date + INTERVAL '2 days'
+               ORDER BY ABS(transaction_date - $5::date) ASC
+               LIMIT 1`,
+            [MOCK_USER_ID, account.id, expectedType, amount, date]
+          );
+
+          if (manualMatches.length > 0) {
+            const { rows: adopted } = await pool.query(
+              `UPDATE transactions SET external_id = $1, is_pending = $2 WHERE id = $3 RETURNING id, tag_id`,
+              [externalId, isPending, manualMatches[0].id]
+            );
+            results.adopted++;
+            results.details.push({
+              status: 'adopted',
+              description,
+              amount,
+              date,
+              reason: 'Vinculado a um lançamento manual já existente (mesmo valor, data próxima)',
+              transactionId: adopted[0].id,
+              tagId: adopted[0].tag_id
+            });
+            continue;
+          }
+
           const { rows } = await pool.query(
             `INSERT INTO transactions
                (id, user_id, description, amount, transaction_type, transaction_date, tag_id, notes, account_id, external_id, is_pending)
@@ -532,7 +584,7 @@ app.post('/api/pluggy/sync', async (req, res) => {
               MOCK_USER_ID,
               description,
               amount,
-              tx.type === 'DEBIT' ? 'expense' : 'income',
+              expectedType,
               date,
               pendingTags.get(externalId) || findMatchingTag(description, tags),
               tx.category ? `Pluggy · ${tx.category}` : 'Pluggy',
@@ -577,46 +629,37 @@ app.post('/api/pluggy/sync', async (req, res) => {
   }
 });
 
-// Lança um ajuste único que alinha o saldo local ao saldo informado pelo Pluggy.
-// A deriva é inerente ao desenho: o Pluggy guarda 12 meses e a data de corte deixa
-// de fora o histórico lançado à mão, então o razão local nunca reconstrói o saldo
-// sozinho. O ajuste tem external_id nulo, então nenhuma sincronização o remove.
+// Lança um ajuste único que alinha o saldo local ao saldo real informado pelo usuário
+// (o que aparece no app do banco). O saldo do Pluggy só entra como sugestão no
+// frontend para preencher o campo — o que é gravado é sempre o valor que o usuário
+// confirmou, nunca um valor buscado automaticamente do Pluggy. O ajuste tem
+// external_id nulo, então nenhuma sincronização o remove.
 app.post('/api/pluggy/reconcile', async (req, res) => {
   try {
-    if (!isPluggyConfigured()) {
-      return res.status(400).json({ error: { message: 'Pluggy não configurado.' }, data: null });
-    }
-
-    const { accountId } = req.body || {};
+    const { accountId, targetBalance } = req.body || {};
     if (!accountId) {
       return res.status(400).json({ error: { message: 'Informe a conta a conciliar.' }, data: null });
     }
+    const target = Number(targetBalance);
+    if (targetBalance === undefined || targetBalance === null || Number.isNaN(target)) {
+      return res.status(400).json({ error: { message: 'Informe o saldo real da conta.' }, data: null });
+    }
 
     const { rows } = await pool.query(
-      'SELECT id, name, current_balance, pluggy_account_id FROM accounts WHERE id = $1 AND user_id = $2 AND pluggy_account_id IS NOT NULL',
+      'SELECT id, name, current_balance FROM accounts WHERE id = $1 AND user_id = $2',
       [accountId, MOCK_USER_ID]
     );
     const account = rows[0];
     if (!account) {
-      return res.status(400).json({ error: { message: 'Conta não encontrada ou não vinculada ao Pluggy.' }, data: null });
+      return res.status(400).json({ error: { message: 'Conta não encontrada.' }, data: null });
     }
 
-    let remote = null;
-    for (const itemId of getConfiguredItemIds()) {
-      if (!UUID_RE.test(itemId)) continue;
-      const found = (await fetchAccounts(itemId)).find(a => a.id === account.pluggy_account_id);
-      if (found) { remote = found; break; }
-    }
-    if (!remote) {
-      return res.status(400).json({ error: { message: 'Conta não encontrada no Pluggy.' }, data: null });
-    }
-
-    const target = expectedLocalBalance(remote);
+    const roundedTarget = Math.round(target * 100) / 100;
     const current = Number(account.current_balance) || 0;
-    const delta = Math.round((target - current) * 100) / 100;
+    const delta = Math.round((roundedTarget - current) * 100) / 100;
 
     if (Math.abs(delta) < 0.01) {
-      return res.json({ data: { adjusted: false, delta: 0, local_balance: current, pluggy_balance: remote.balance }, error: null });
+      return res.json({ data: { adjusted: false, delta: 0, local_balance: current }, error: null });
     }
 
     const { rows: inserted } = await pool.query(
@@ -627,11 +670,11 @@ app.post('/api/pluggy/reconcile', async (req, res) => {
       [
         randomUUID(),
         MOCK_USER_ID,
-        'Conciliação de saldo (Pluggy)',
+        'Conciliação de saldo',
         Math.abs(delta),
         delta > 0 ? 'income' : 'expense',
         account.id,
-        `Ajuste automático: alinha o saldo ao valor informado pelo Pluggy (${remote.balance})`
+        `Ajuste manual: alinha o saldo ao valor informado pelo usuário (${roundedTarget})`
       ]
     );
 
@@ -642,8 +685,7 @@ app.post('/api/pluggy/reconcile', async (req, res) => {
         adjusted: true,
         delta,
         transactionId: inserted[0].id,
-        local_balance: target,
-        pluggy_balance: remote.balance
+        local_balance: roundedTarget
       },
       error: null
     });

@@ -18,6 +18,8 @@ const getStatusIcon = (status) => {
   switch (status) {
     case 'imported':
       return <CheckCircle className="w-4 h-4 text-green-600" />;
+    case 'adopted':
+      return <CheckCircle className="w-4 h-4 text-indigo-600" />;
     case 'skipped':
       return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
     case 'error':
@@ -31,12 +33,27 @@ const getStatusColor = (status) => {
   switch (status) {
     case 'imported':
       return 'bg-green-100 text-green-800';
+    case 'adopted':
+      return 'bg-indigo-100 text-indigo-800';
     case 'skipped':
       return 'bg-yellow-100 text-yellow-800';
     case 'error':
       return 'bg-red-100 text-red-800';
     default:
       return 'bg-gray-100 text-gray-800';
+  }
+};
+
+const getStatusLabel = (status) => {
+  switch (status) {
+    case 'imported':
+      return 'Importada';
+    case 'adopted':
+      return 'Vinculada';
+    case 'skipped':
+      return 'Ignorada';
+    default:
+      return 'Erro';
   }
 };
 
@@ -49,6 +66,7 @@ export default function ImportResultsModal({ results, isOpen, onClose, tags, onT
       '='.repeat(50),
       `Total de transações: ${results.total}`,
       `Importadas: ${results.imported}`,
+      ...(results.adopted ? [`Vinculadas a lançamentos manuais: ${results.adopted}`] : []),
       `Ignoradas: ${results.skipped}`,
       `Erros: ${results.errors}`,
       '',
@@ -87,7 +105,7 @@ export default function ImportResultsModal({ results, isOpen, onClose, tags, onT
         </DialogHeader>
 
         {/* Resumo */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 my-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 my-4">
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <div className="text-2xl font-bold text-gray-800">{results.total}</div>
             <div className="text-sm text-gray-600">Total</div>
@@ -95,6 +113,10 @@ export default function ImportResultsModal({ results, isOpen, onClose, tags, onT
           <div className="text-center p-3 bg-green-50 rounded-lg">
             <div className="text-2xl font-bold text-green-800">{results.imported}</div>
             <div className="text-sm text-green-600">Importadas</div>
+          </div>
+          <div className="text-center p-3 bg-indigo-50 rounded-lg">
+            <div className="text-2xl font-bold text-indigo-800">{results.adopted || 0}</div>
+            <div className="text-sm text-indigo-600">Vinculadas</div>
           </div>
           <div className="text-center p-3 bg-yellow-50 rounded-lg">
             <div className="text-2xl font-bold text-yellow-800">{results.skipped}</div>
@@ -128,8 +150,7 @@ export default function ImportResultsModal({ results, isOpen, onClose, tags, onT
                           {detail.description}
                           </span>
                           <Badge className={getStatusColor(detail.status)}>
-                          {detail.status === 'imported' ? 'Importada' : 
-                              detail.status === 'skipped' ? 'Ignorada' : 'Erro'}
+                            {getStatusLabel(detail.status)}
                           </Badge>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-gray-600">
@@ -138,7 +159,7 @@ export default function ImportResultsModal({ results, isOpen, onClose, tags, onT
                           <span className="text-xs truncate">{detail.reason}</span>
                       </div>
                     </div>
-                    {detail.status === 'imported' && (
+                    {(detail.status === 'imported' || detail.status === 'adopted') && (
                       <div className="w-48">
                         <TagSelector 
                           tags={tags} 

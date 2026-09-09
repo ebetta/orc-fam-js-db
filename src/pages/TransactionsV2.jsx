@@ -37,6 +37,7 @@ import {
   SlidersHorizontal,
   ArrowUpRight,
   Landmark,
+  Archive,
 } from "lucide-react";
 
 // ─── Progressive balance calculation (same logic as Transactions.jsx) ────────
@@ -324,23 +325,40 @@ function HeroCard({ totalNetWorth, isLoading }) {
   );
 }
 
-function AccountGrid({ accounts, balances, onAccountClick, activeAccountId }) {
+function AccountGrid({ accounts, balances, inactiveAccounts, onAccountClick, activeAccountId }) {
   if (!accounts || accounts.length === 0) return null;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h3 className="font-headline-sm text-headline-sm text-on-background flex items-center gap-2">
           Saldo das Contas
         </h3>
-        {activeAccountId && activeAccountId !== "all" && (
-          <button
-            onClick={() => onAccountClick("all")}
-            className="text-xs text-secondary hover:underline font-semibold flex items-center gap-1 transition-colors"
-          >
-            <X className="w-3.5 h-3.5" /> Limpar filtro
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {inactiveAccounts && inactiveAccounts.length > 0 && inactiveAccounts.map((account) => (
+            <button
+              key={account.id}
+              onClick={() => onAccountClick(activeAccountId === account.id ? "all" : account.id)}
+              title={`Ver histórico de "${account.name}" (desativada)`}
+              className={`text-[10px] px-2 py-1 rounded-full border flex items-center gap-1 font-semibold transition-colors truncate max-w-[140px]
+                ${activeAccountId === account.id
+                  ? "bg-on-surface-variant/20 border-on-surface-variant/40 text-on-background"
+                  : "bg-surface-container-low border-outline/30 text-on-surface-variant hover:bg-surface-container-high"
+                }`}
+            >
+              <Archive className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">{account.name}</span>
+            </button>
+          ))}
+          {activeAccountId && activeAccountId !== "all" && (
+            <button
+              onClick={() => onAccountClick("all")}
+              className="text-xs text-secondary hover:underline font-semibold flex items-center gap-1 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" /> Limpar filtro
+            </button>
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {(balances.length > 0 ? balances : accounts).map((account) => {
@@ -966,13 +984,22 @@ export default function TransactionsV2Page() {
     }
   }, [transactionsForDisplay, transactions, accounts, filters, isLoading]);
 
+  const activeAccounts = useMemo(
+    () => accounts.filter((acc) => acc.is_active !== false),
+    [accounts]
+  );
+  const inactiveAccounts = useMemo(
+    () => accounts.filter((acc) => acc.is_active === false),
+    [accounts]
+  );
+
   // Net worth effect
   useEffect(() => {
     const calculateSummaries = async () => {
-      if (isLoading || !accounts.length) { setIsCalculatingNetWorth(false); return; }
+      if (isLoading || !activeAccounts.length) { setIsCalculatingNetWorth(false); return; }
       setIsCalculatingNetWorth(true);
       try {
-        const balancesPromises = accounts.map(async (account) => {
+        const balancesPromises = activeAccounts.map(async (account) => {
           let currentBalance = parseFloat(account.current_balance);
           if (isNaN(currentBalance)) currentBalance = parseFloat(account.initial_balance) || 0;
           let balanceInBRL = currentBalance;
@@ -1000,7 +1027,7 @@ export default function TransactionsV2Page() {
       }
     };
     calculateSummaries();
-  }, [accounts, isLoading]);
+  }, [activeAccounts, isLoading]);
 
   const handleAccountCardClick = (accountId) => {
     setFilters((prev) => ({ ...prev, accountId }));
@@ -1025,15 +1052,16 @@ export default function TransactionsV2Page() {
         </motion.div>
 
         {/* ── Account Grid ── */}
-        {accounts.length > 0 && !isLoading && (
+        {activeAccounts.length > 0 && !isLoading && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.1 }}
           >
             <AccountGrid
-              accounts={accounts}
+              accounts={activeAccounts}
               balances={calculatedAccountBalances}
+              inactiveAccounts={inactiveAccounts}
               onAccountClick={handleAccountCardClick}
               activeAccountId={filters.accountId}
             />
