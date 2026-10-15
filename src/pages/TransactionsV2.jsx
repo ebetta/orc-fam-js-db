@@ -473,7 +473,7 @@ function FiltersBar({ filters, onFiltersChange, accounts, tags, onClearFilters, 
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
         <input
           type="text"
-          placeholder="Buscar por descrição, conta ou tag..."
+          placeholder="Buscar por descrição, conta, tag ou valor..."
           value={filters.searchTerm}
           onChange={(e) => onFiltersChange({ ...filters, searchTerm: e.target.value })}
           className="w-full pl-10 pr-4 py-3 bg-surface-container-low border-none rounded-xl font-body-sm text-body-sm text-on-background placeholder-gray-400 focus:ring-2 focus:ring-secondary focus:outline-none transition-all"
@@ -570,7 +570,26 @@ function FiltersBar({ filters, onFiltersChange, accounts, tags, onClearFilters, 
   );
 }
 
-function TransactionRow({ transaction, accounts, tags, onEdit, onDelete, index }) {
+/**
+ * Converte o termo de busca para o formato "1234,56" quando ele parece um valor.
+ * Ponto seguido de 1–2 dígitos no fim é tratado como decimal ("114.10");
+ * os demais pontos são separadores de milhar ("1.234,56").
+ */
+function normalizeAmountSearch(term) {
+  const cleaned = term.replace(/R\$|\s|-/gi, "");
+  if (!/^\d[\d.,]*$/.test(cleaned)) return null;
+  const withComma = cleaned.includes(",") ? cleaned : cleaned.replace(/\.(\d{1,2})$/, ",$1");
+  return withComma.replace(/\./g, "");
+}
+
+// Casa pelo início do valor: "114" encontra 114,10 e 114,79, mas não 1.114,00.
+function amountMatches(amount, search) {
+  const value = Math.abs(parseFloat(amount));
+  if (Number.isNaN(value)) return false;
+  return value.toFixed(2).replace(".", ",").startsWith(search);
+}
+
+function TransactionRow({ transaction, accounts, tags, onEdit, onDelete, index, selectedAccountId }) {
   const account = accounts.find((a) => a.id === transaction.account_id);
   const destAccount = accounts.find((a) => a.id === transaction.destination_account_id);
   const tag = tags.find((t) => t.id === transaction.tag_id);
@@ -578,7 +597,13 @@ function TransactionRow({ transaction, accounts, tags, onEdit, onDelete, index }
   const TypeIcon = typeCfg.icon;
 
   const amount = parseFloat(transaction.amount);
-  const isNegativeAmount = transaction.transaction_type === "expense";
+  // Transferências: saída da conta filtrada é negativa; entrada é positiva.
+  const isOutgoingTransfer =
+    transaction.transaction_type === "transfer" &&
+    selectedAccountId &&
+    selectedAccountId !== "all" &&
+    transaction.account_id === selectedAccountId;
+  const isNegativeAmount = transaction.transaction_type === "expense" || isOutgoingTransfer;
   
   const amountColor = transaction.transaction_type === "income"
     ? "text-primary-v2"
@@ -903,6 +928,9 @@ export default function TransactionsV2Page() {
     return ids;
   }, [filters.tagId, tags]);
 
+  // Termo numérico ("114", "21,99", "R$ 1.234,5", "114.10") também busca por valor.
+  const amountSearch = useMemo(() => normalizeAmountSearch(filters.searchTerm), [filters.searchTerm]);
+
   const filteredTransactions = useMemo(() => {
     return transactions.filter((transaction) => {
       const typeMatch = filters.type === "all" || transaction.transaction_type === filters.type;
@@ -919,7 +947,8 @@ export default function TransactionsV2Page() {
         filters.searchTerm === "" ||
         transaction.description.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
         (accounts.find((a) => a.id === transaction.account_id)?.name.toLowerCase().includes(filters.searchTerm.toLowerCase())) ||
-        (tags.find((t) => t.id === transaction.tag_id)?.name.toLowerCase().includes(filters.searchTerm.toLowerCase()));
+        (tags.find((t) => t.id === transaction.tag_id)?.name.toLowerCase().includes(filters.searchTerm.toLowerCase())) ||
+        (amountSearch !== null && amountMatches(transaction.amount, amountSearch));
       return typeMatch && accountMatch && tagMatch && periodMatch && searchTermMatch;
     }).sort((a, b) => {
       const dateA = parseISO(a.transaction_date).getTime();
@@ -927,7 +956,7 @@ export default function TransactionsV2Page() {
       if (dateA !== dateB) return dateB - dateA;
       return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
     });
-  }, [transactions, filters, accounts, tags, relevantTagIds]);
+  }, [transactions, filters, accounts, tags, relevantTagIds, amountSearch]);
 
   const totalItems = filteredTransactions.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -1156,6 +1185,7 @@ export default function TransactionsV2Page() {
                       onEdit={handleEditTransaction}
                       onDelete={handleDeleteTransaction}
                       index={index}
+                      selectedAccountId={filters.accountId}
                     />
                   ))
                 )}

@@ -318,6 +318,42 @@ function daysAgo(days) {
   return toDateOnly(Date.now() - days * 24 * 60 * 60 * 1000);
 }
 
+/**
+ * Valor da transação na moeda da conta local. Compras internacionais no cartão
+ * chegam com `amount` na moeda original (ex.: USD) e `amountInAccountCurrency`
+ * já convertido pelo banco — é esse que entra na fatura. Se o banco não mandar a
+ * conversão, usamos a cotação mais recente da tabela exchange_rates até a data.
+ */
+async function resolvePluggyAmount(tx, accountCurrency, date) {
+  const original = Math.abs(Number(tx.amount) || 0);
+  const txCurrency = tx.currencyCode || accountCurrency;
+  if (txCurrency === accountCurrency) return { amount: original, foreign: null };
+
+  const foreign = { currency: txCurrency, amount: original };
+  if (tx.amountInAccountCurrency != null) {
+    return { amount: Math.abs(Number(tx.amountInAccountCurrency)), foreign };
+  }
+
+  const { rows } = await pool.query(
+    `SELECT rate FROM exchange_rates
+       WHERE from_currency = $1 AND to_currency = $2
+       ORDER BY (rate_date <= $3::date) DESC, rate_date DESC
+       LIMIT 1`,
+    [txCurrency, accountCurrency, date]
+  );
+  if (rows.length === 0) return { amount: original, foreign: { ...foreign, unconverted: true } };
+
+  const rate = parseFloat(rows[0].rate);
+  return { amount: Math.round(original * rate * 100) / 100, foreign: { ...foreign, rate } };
+}
+
+function describeForeign(foreign) {
+  if (!foreign) return '';
+  const value = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: foreign.currency }).format(foreign.amount);
+  if (foreign.unconverted) return ` · ${value} (sem cotação ${foreign.currency} cadastrada)`;
+  return foreign.rate ? ` · ${value} @ ${foreign.rate}` : ` · ${value}`;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Erro comum de configuração: colar a API Key (um JWT) no lugar do Item ID.
@@ -442,7 +478,7 @@ app.post('/api/pluggy/sync', async (req, res) => {
     const { accountId, from, to } = req.body || {};
 
     const params = [MOCK_USER_ID];
-    let sql = 'SELECT id, name, pluggy_account_id, pluggy_last_sync_at, pluggy_cutover_date FROM accounts WHERE user_id = $1 AND pluggy_account_id IS NOT NULL';
+    let sql = 'SELECT id, name, currency, pluggy_account_id, pluggy_last_sync_at, pluggy_cutover_date FROM accounts WHERE user_id = $1 AND pluggy_account_id IS NOT NULL';
     if (accountId) {
       params.push(accountId);
       sql += ' AND id = $2';
@@ -515,12 +551,16 @@ app.post('/api/pluggy/sync', async (req, res) => {
         results.total++;
 
         const description = tx.description || tx.descriptionRaw || 'Transação sem descrição';
-        const amount = Math.abs(Number(tx.amount) || 0);
         const date = toDateOnly(tx.date);
         const externalId = `${PLUGGY_PREFIX}${tx.id}`;
         const isPending = tx.status === 'PENDING';
+        let amount = Math.abs(Number(tx.amount) || 0);
 
         try {
+          const resolved = await resolvePluggyAmount(tx, account.currency || 'BRL', date);
+          amount = resolved.amount;
+          const foreignNote = describeForeign(resolved.foreign);
+
           // Transferência entre contas próprias: se já existe um lançamento manual de
           // transferência com o mesmo valor e data próxima envolvendo esta conta, o Pluggy
           // está relatando o mesmo movimento pelo lado do banco — não duplicar.
@@ -587,7 +627,7 @@ app.post('/api/pluggy/sync', async (req, res) => {
               expectedType,
               date,
               pendingTags.get(externalId) || findMatchingTag(description, tags),
-              tx.category ? `Pluggy · ${tx.category}` : 'Pluggy',
+              (tx.category ? `Pluggy · ${tx.category}` : 'Pluggy') + foreignNote,
               account.id,
               externalId,
               isPending
