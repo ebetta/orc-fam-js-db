@@ -75,7 +75,6 @@ export default function Dashboard() {
       try {
         let totalInBRL = 0;
         const conversionPromises = accounts
-          .filter(acc => acc.is_active !== false)
           .map(async (account) => {
             const balance = parseFloat(account.current_balance);
             const numericBalance = isNaN(balance) ? (parseFloat(account.initial_balance) || 0) : balance;

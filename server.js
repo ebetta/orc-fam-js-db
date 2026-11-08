@@ -75,8 +75,6 @@ async function recalculateMonthlyPatrimony() {
       let netWorthBRL = 0;
 
       for (const account of accounts) {
-        if (account.is_active === false) continue;
-
         const currency = account.currency || 'BRL';
         let balance = parseFloat(account.current_balance);
         if (isNaN(balance)) balance = parseFloat(account.initial_balance) || 0;
