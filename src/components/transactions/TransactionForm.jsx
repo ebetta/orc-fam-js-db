@@ -27,6 +27,7 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
     transaction_type: transaction?.transaction_type || "expense",
     account_id: transaction?.account_id || "",
     destination_account_id: transaction?.destination_account_id || null,
+    destination_amount: transaction?.destination_amount ?? "",
     tag_id: transaction?.tag_id || null,
     transaction_date: transaction?.transaction_date ? format(parseISO(transaction.transaction_date), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
     notes: transaction?.notes || ""
@@ -44,6 +45,7 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
       transaction_type: transaction?.transaction_type || "expense",
       account_id: transaction?.account_id || (accounts.length > 0 ? accounts[0].id : ""),
       destination_account_id: transaction?.destination_account_id || null,
+      destination_amount: transaction?.destination_amount ?? "",
       tag_id: transaction?.tag_id || null,
       transaction_date: transaction?.transaction_date ? format(parseISO(transaction.transaction_date), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
       notes: transaction?.notes || ""
@@ -84,6 +86,12 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
       dataToSave.destination_account_id = null;
     }
 
+    // Transferência entre moedas diferentes: o destino recebe o valor na sua própria moeda.
+    // Mesma moeda (ou não-transferência): NULL, e o banco usa o próprio amount.
+    dataToSave.destination_amount = isCrossCurrencyTransfer
+      ? parseFloat(formData.destination_amount)
+      : null;
+
     // Fields that are not part of the main transaction table schema or are handled by Supabase (like id, user_id, created_at, updated_at)
     // should not be explicitly sent unless intended.
     // formData already contains the correct field names: description, amount, transaction_type, account_id, tag_id, transaction_date, notes, destination_account_id.
@@ -110,6 +118,17 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
   const availableDestinationAccounts = accounts.filter(acc => acc.id !== formData.account_id);
   const selectedAccount = accounts.find(acc => acc.id === formData.account_id);
   const selectedAccountCurrency = selectedAccount?.currency || 'BRL';
+  const destinationAccount = accounts.find(acc => acc.id === formData.destination_account_id);
+  const destinationAccountCurrency = destinationAccount?.currency || 'BRL';
+  const isCrossCurrencyTransfer =
+    formData.transaction_type === 'transfer' &&
+    !!destinationAccount &&
+    destinationAccountCurrency !== selectedAccountCurrency;
+  const sourceAmount = parseFloat(formData.amount);
+  const destAmount = parseFloat(formData.destination_amount);
+  const impliedRate = isCrossCurrencyTransfer && sourceAmount > 0 && destAmount > 0
+    ? sourceAmount / destAmount
+    : null;
 
   const leafTags = tags.filter(tag => isLeafTag(tag, tags));
   const leafTagsWithPath = leafTags.map(tag => ({ ...tag, _displayPath: getTagPath(tag.id, tags) }));
@@ -226,9 +245,9 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
                   ))}
                 </SelectContent>
               </Select>
-              {formData.destination_account_id && (
+              {isCrossCurrencyTransfer && (
                 <p className="text-xs text-gray-500">
-                  Nota: Se as contas têm moedas diferentes, a conversão será aplicada automaticamente
+                  Moedas diferentes: informe abaixo o valor que saiu da origem ({selectedAccountCurrency}) e o que chegou no destino ({destinationAccountCurrency}).
                 </p>
               )}
             </div>
@@ -237,7 +256,7 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="amount" className="text-sm font-medium">
-                Valor * {selectedAccountCurrency !== 'BRL' && (
+                {isCrossCurrencyTransfer ? 'Valor enviado' : 'Valor'} * {(selectedAccountCurrency !== 'BRL' || isCrossCurrencyTransfer) && (
                   <span className="text-sm text-gray-500">({selectedAccountCurrency})</span>
                 )}
               </Label>
@@ -251,12 +270,36 @@ export default function TransactionForm({ transaction, accounts, tags, onSave, o
                 required
                 className="h-12"
               />
-              {selectedAccountCurrency !== 'BRL' && (
+              {selectedAccountCurrency !== 'BRL' && !isCrossCurrencyTransfer && (
                 <p className="text-xs text-gray-500">
                   Valor será convertido para BRL nos cálculos gerais usando a cotação atual
                 </p>
               )}
             </div>
+
+            {isCrossCurrencyTransfer && (
+              <div className="space-y-2">
+                <Label htmlFor="destination_amount" className="text-sm font-medium">
+                  Valor recebido * <span className="text-sm text-gray-500">({destinationAccountCurrency})</span>
+                </Label>
+                <Input
+                  id="destination_amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.destination_amount}
+                  onChange={(e) => handleInputChange("destination_amount", e.target.value)}
+                  placeholder="0,00"
+                  required
+                  className="h-12"
+                />
+                {impliedRate && (
+                  <p className="text-xs text-gray-500">
+                    Câmbio efetivo: 1 {destinationAccountCurrency} = {impliedRate.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} {selectedAccountCurrency}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="transaction_date" className="text-sm font-medium">

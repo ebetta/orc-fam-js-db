@@ -25,8 +25,11 @@ export const calculateAccountBalanceAndDetails = async (account, allTransactions
         } else if (transaction.destination_account_id === account.id && transaction.transaction_type === "transfer") {
             transactionConsidered = true;
             const sourceAccountCurrency = accountCurrencyMap.get(transaction.account_id) || 'BRL';
+            const destinationAmount = parseFloat(transaction.destination_amount);
             let amountInAccountCurrency = transactionAmount;
-            if (sourceAccountCurrency !== accountCurrency) {
+            if (!isNaN(destinationAmount)) {
+                amountInAccountCurrency = destinationAmount; // já está na moeda do destino
+            } else if (sourceAccountCurrency !== accountCurrency) {
                 amountInAccountCurrency = await convertCurrencyFn(transactionAmount, sourceAccountCurrency, accountCurrency, transaction.transaction_date);
             }
             amountEffect = amountInAccountCurrency;

@@ -130,6 +130,7 @@ CREATE TABLE public.transactions (
   updated_at timestamp with time zone NOT NULL DEFAULT timezone ('utc'::text, now()),
   account_id uuid NULL,
   destination_account_id uuid NULL,
+  destination_amount numeric NULL, -- transferência: valor creditado na moeda do destino; NULL = igual a amount
   tag_id uuid NULL,
   external_id text NULL, -- ID da origem externa, ex.: 'pluggy:<uuid>'; UNIQUE parcial por usuário
   is_pending boolean NOT NULL DEFAULT false, -- fatura aberta: a sync reescreve estas linhas a cada execução

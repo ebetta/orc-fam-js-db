@@ -109,7 +109,10 @@ const calculateProgressiveBalances = async (
         }
       } else {
         const destCurrency = calculatedCurrency;
-        if (sourceCurrency !== destCurrency) {
+        const destinationAmount = parseFloat(t.destination_amount);
+        if (!isNaN(destinationAmount)) {
+          amountEffect = -destinationAmount; // já está na moeda desta conta
+        } else if (sourceCurrency !== destCurrency) {
           const converted = await convertCurrency(
             amount,
             sourceCurrency,
@@ -174,7 +177,10 @@ const calculateProgressiveBalances = async (
       const destCurrency = accountCurrencyMap.get(t.destination_account_id);
       if (destCurrency) {
         runningBalances.set(sourceCurrency, (runningBalances.get(sourceCurrency) || 0) - amount);
-        if (sourceCurrency === destCurrency) {
+        const destinationAmount = parseFloat(t.destination_amount);
+        if (!isNaN(destinationAmount)) {
+          runningBalances.set(destCurrency, (runningBalances.get(destCurrency) || 0) + destinationAmount);
+        } else if (sourceCurrency === destCurrency) {
           runningBalances.set(destCurrency, (runningBalances.get(destCurrency) || 0) + amount);
         } else {
           const convertedAmount = await convertCurrency(
@@ -228,6 +234,17 @@ const calculateProgressiveBalances = async (
 
     if (prevTx.transaction_type === "income") efeitoInversoTxAnterior = -amountPrevTxInCalc;
     else if (prevTx.transaction_type === "expense") efeitoInversoTxAnterior = +amountPrevTxInCalc;
+    else if (prevTx.transaction_type === "transfer") {
+      // Entre moedas diferentes a transferência não é neutra em R$: desfaz a saída e a entrada.
+      const destCurrency = accountCurrencyMap.get(prevTx.destination_account_id);
+      const destinationAmount = parseFloat(prevTx.destination_amount);
+      if (destCurrency && !isNaN(destinationAmount) && destCurrency !== prevTx.currency) {
+        const destInBRL = destCurrency === "BRL"
+          ? destinationAmount
+          : await convertCurrency(destinationAmount, destCurrency, "BRL", prevTx.transaction_date);
+        efeitoInversoTxAnterior = amountPrevTxInCalc - destInBRL;
+      }
+    }
 
     currentTx.progressiveBalance = prevTx.progressiveBalance + efeitoInversoTxAnterior;
     currentTx.progressiveBalanceCurrency = prevTx.progressiveBalanceCurrency;
@@ -596,13 +613,24 @@ function TransactionRow({ transaction, accounts, tags, onEdit, onDelete, index, 
   const typeCfg = typeLabels[transaction.transaction_type] || typeLabels.expense;
   const TypeIcon = typeCfg.icon;
 
-  const amount = parseFloat(transaction.amount);
   // Transferências: saída da conta filtrada é negativa; entrada é positiva.
   const isOutgoingTransfer =
     transaction.transaction_type === "transfer" &&
     selectedAccountId &&
     selectedAccountId !== "all" &&
     transaction.account_id === selectedAccountId;
+  const isIncomingTransfer =
+    transaction.transaction_type === "transfer" &&
+    selectedAccountId &&
+    selectedAccountId !== "all" &&
+    transaction.destination_account_id === selectedAccountId;
+  // Cada lado da transferência na moeda da sua própria conta.
+  const destinationAmount = parseFloat(transaction.destination_amount);
+  const hasDestinationAmount = transaction.transaction_type === "transfer" && !isNaN(destinationAmount);
+  const sourceCurrency = transaction.currency || "BRL";
+  const destCurrency = destAccount?.currency || sourceCurrency;
+  const amount = isIncomingTransfer && hasDestinationAmount ? destinationAmount : parseFloat(transaction.amount);
+  const amountCurrency = isIncomingTransfer ? destCurrency : sourceCurrency;
   const isNegativeAmount = transaction.transaction_type === "expense" || isOutgoingTransfer;
   
   const amountColor = transaction.transaction_type === "income"
@@ -641,7 +669,14 @@ function TransactionRow({ transaction, accounts, tags, onEdit, onDelete, index, 
             <span className="text-xs text-on-surface-variant truncate">{transaction.notes}</span>
           )}
           {transaction.transaction_type === "transfer" && destAccount && (
-            <span className="text-xs text-secondary font-semibold mt-0.5">→ {destAccount.name}</span>
+            <span className="text-xs text-secondary font-semibold mt-0.5">
+              → {destAccount.name}
+              {hasDestinationAmount && destCurrency !== sourceCurrency && (
+                <span className="font-normal text-on-surface-variant">
+                  {" "}· {fmtCurrency(parseFloat(transaction.amount), sourceCurrency)} → {fmtCurrency(destinationAmount, destCurrency)}
+                </span>
+              )}
+            </span>
           )}
         </div>
       </td>
@@ -680,7 +715,7 @@ function TransactionRow({ transaction, accounts, tags, onEdit, onDelete, index, 
 
       {/* Amount */}
       <td className={`px-6 py-4 text-right font-bold font-body-md text-body-md whitespace-nowrap ${amountColor}`}>
-        {isNegativeAmount ? "−" : "+"} {fmtCurrency(amount, transaction.currency || "BRL")}
+        {isNegativeAmount ? "−" : "+"} {fmtCurrency(amount, amountCurrency)}
       </td>
 
       {/* Progressive Balance */}

@@ -36,6 +36,7 @@ There is no test runner or typecheck script.
 - Mock auth: `POST /api/auth/login` returns a hardcoded user + session; `GET /api/auth/user`. `MOCK_USER_ID = '11111111-1111-1111-1111-111111111111'`. The frontend session lives in `localStorage` (`local_session`, `local_user`) — see `src/lib/api.js`'s `auth` export. Login is a single-button page (`Entrar (Modo Local)`).
 - `migration.sql` has one-time SQL to drop `auth.users` FK constraints and reassign `user_id` to the mock UUID. Later migrations live in `migrations/` and are applied by hand (`psql -d orc-fam -f migrations/002_pluggy.sql`) — there is no migration runner.
 - A trigger (`update_account_balances_from_transaction`) recalculates `accounts.current_balance` whenever transactions are inserted/updated/deleted — don't recompute balances manually in app code.
+- **Cross-currency transfers** (`migrations/006`): `amount` is what left the source account, in the source currency; `destination_amount` is what arrived, in the destination currency (NULL = same as `amount`). The trigger credits `COALESCE(destination_amount, amount)` to the destination. Every balance computation (frontend `balanceUtils.js`, `TransactionsV2.jsx`, server patrimony) must use `destination_amount` for the destination side — never convert `amount` with an exchange rate when it is set. Balances are still *displayed* in BRL via `exchange_rates`.
 
 Full table schemas (accounts, tags, budgets, transactions, exchange_rates) are documented in [GEMINI.md](GEMINI.md) — read that before writing raw SQL or migrations.
 

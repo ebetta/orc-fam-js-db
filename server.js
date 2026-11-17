@@ -94,7 +94,8 @@ async function recalculateMonthlyPatrimony() {
             else if (t.transaction_type === 'expense') balance += amount;
             else if (t.transaction_type === 'transfer') balance += amount;
           } else if (t.destination_account_id === account.id) {
-            balance -= amount;
+            const destinationAmount = parseFloat(t.destination_amount);
+            balance -= isNaN(destinationAmount) ? amount : destinationAmount;
           }
         }
 
@@ -564,9 +565,10 @@ app.post('/api/pluggy/sync', async (req, res) => {
           // está relatando o mesmo movimento pelo lado do banco — não duplicar.
           const { rows: manualTransfers } = await pool.query(
             `SELECT id FROM transactions
-               WHERE user_id = $1 AND transaction_type = 'transfer' AND amount = $2
+               WHERE user_id = $1 AND transaction_type = 'transfer'
                  AND transaction_date BETWEEN $3::date - INTERVAL '2 days' AND $3::date + INTERVAL '2 days'
-                 AND (account_id = $4 OR destination_account_id = $4)
+                 AND ((account_id = $4 AND amount = $2)
+                   OR (destination_account_id = $4 AND COALESCE(destination_amount, amount) = $2))
                LIMIT 1`,
             [MOCK_USER_ID, amount, date, account.id]
           );
