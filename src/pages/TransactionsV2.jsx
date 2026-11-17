@@ -481,7 +481,8 @@ function FiltersBar({ filters, onFiltersChange, accounts, tags, onClearFilters, 
     filters.tagId !== "all" ||
     filters.period.from ||
     filters.period.to ||
-    filters.searchTerm;
+    filters.searchTerm ||
+    filters.transactionId;
 
   return (
     <div className="glass-card p-4 rounded-2xl flex flex-wrap gap-4 items-center shadow-sm">
@@ -568,6 +569,12 @@ function FiltersBar({ filters, onFiltersChange, accounts, tags, onClearFilters, 
             />
           </PopoverContent>
         </Popover>
+
+        {filters.transactionId && (
+          <span className="flex items-center gap-1.5 bg-indigo-50 text-secondary border border-indigo-200 rounded-xl px-4 py-3 text-sm font-semibold">
+            Exibindo uma transação específica
+          </span>
+        )}
 
         {/* Clear */}
         {hasActiveFilters && (
@@ -827,7 +834,7 @@ export default function TransactionsV2Page() {
   const { toast } = useToast();
   const { registerNewTransactionHandler, unregisterNewTransactionHandler } = useSidebarActions();
   const openNewTransactionRef = useRef(null);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
 
@@ -837,6 +844,7 @@ export default function TransactionsV2Page() {
     tagId: "all",
     period: { from: null, to: null },
     searchTerm: "",
+    transactionId: null,
   });
 
   // Sync URL params → filters
@@ -845,9 +853,11 @@ export default function TransactionsV2Page() {
     const tagIdFromUrl = searchParams.get("tagId");
     const periodFromUrl = searchParams.get("periodFrom");
     const periodToUrl = searchParams.get("periodTo");
+    const transactionIdFromUrl = searchParams.get("transactionId");
 
     setFilters((prev) => ({
       ...prev,
+      transactionId: transactionIdFromUrl || null,
       accountId: accountIdFromUrl || prev.accountId,
       tagId: tagIdFromUrl || prev.tagId,
       period: {
@@ -953,7 +963,14 @@ export default function TransactionsV2Page() {
   };
 
   const handleCancelForm = () => { setShowForm(false); setEditingTransaction(null); };
-  const handleClearFilters = () => setFilters({ type: "all", accountId: "all", tagId: "all", period: { from: null, to: null }, searchTerm: "" });
+  const handleClearFilters = () => {
+    setFilters({ type: "all", accountId: "all", tagId: "all", period: { from: null, to: null }, searchTerm: "", transactionId: null });
+    if (searchParams.get("transactionId")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("transactionId");
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   // Filtering & pagination
   const relevantTagIds = useMemo(() => {
@@ -968,6 +985,8 @@ export default function TransactionsV2Page() {
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter((transaction) => {
+      // Link direto para uma transação (ex.: conciliação dos orçamentos): só ela.
+      if (filters.transactionId) return transaction.id === filters.transactionId;
       const typeMatch = filters.type === "all" || transaction.transaction_type === filters.type;
       const accountMatch =
         filters.accountId === "all" ||

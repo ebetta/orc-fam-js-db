@@ -341,12 +341,21 @@ export default function BudgetsPage() {
     const REASON_ORDER = ['both', 'no_tag', 'inactive', 'income', 'parent', 'no_budget', 'scope', 'overlap'];
 
     const buckets = new Map();
-    const addToBucket = (reason, amount, tagName) => {
-      if (!buckets.has(reason)) buckets.set(reason, { reason, amount: 0, count: 0, tagNames: new Set() });
+    const addToBucket = (reason, amount, tagName, transaction) => {
+      if (!buckets.has(reason)) buckets.set(reason, { reason, amount: 0, count: 0, tagNames: new Set(), transactions: [] });
       const bucket = buckets.get(reason);
       bucket.amount += amount;
       bucket.count += 1;
       if (tagName) bucket.tagNames.add(tagName);
+      if (transaction) {
+        bucket.transactions.push({
+          id: transaction.id,
+          description: transaction.description,
+          transaction_date: transaction.transaction_date,
+          amount,
+          tagName: tagName || null,
+        });
+      }
     };
 
     let somaContada = 0;
@@ -364,7 +373,7 @@ export default function BudgetsPage() {
       else if (tag.tag_type === 'both') reason = 'both';
       else if (!tag.parent_tag_id && tagsWithChildren.has(tag.id)) reason = 'parent';
       else reason = 'no_budget';
-      addToBucket(reason, amount, tag?.name);
+      addToBucket(reason, amount, tag?.name, t);
     });
 
     // Resto: transações dentro de uma tag orçada mas fora da vigência do orçamento
@@ -372,7 +381,7 @@ export default function BudgetsPage() {
     const ajusteVigencia = somaContada - totalGasto;
     if (Math.abs(ajusteVigencia) >= 0.005) {
       const reason = ajusteVigencia > 0 ? 'scope' : 'overlap';
-      buckets.set(reason, { reason, amount: ajusteVigencia, count: 0, tagNames: new Set() });
+      buckets.set(reason, { reason, amount: ajusteVigencia, count: 0, tagNames: new Set(), transactions: [] });
     }
 
     const itensConciliacao = REASON_ORDER
@@ -385,6 +394,8 @@ export default function BudgetsPage() {
           amount: bucket.amount,
           count: bucket.count,
           tagNames: [...bucket.tagNames].sort((a, b) => a.localeCompare(b)),
+          transactions: [...bucket.transactions].sort((a, b) =>
+            String(b.transaction_date).localeCompare(String(a.transaction_date)) || b.amount - a.amount),
         };
       });
 

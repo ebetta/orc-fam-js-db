@@ -1,7 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Scale, CheckCircle2, TagIcon } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Scale, CheckCircle2, TagIcon, ChevronDown, ExternalLink } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { createPageUrl } from "@/utils";
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('pt-BR', {
@@ -19,6 +23,79 @@ const formatCurrency = (amount) => {
  * tudo que fica de fora (sem tag, tags do tipo "Ambos", tags inativas, etc.)
  * é listado aqui em vez de simplesmente sumir da conta.
  */
+const formatDate = (date) => {
+  try {
+    return format(parseISO(String(date).slice(0, 10)), "dd MMM yyyy", { locale: ptBR });
+  } catch {
+    return String(date);
+  }
+};
+
+function ReconciliationItem({ item }) {
+  const [open, setOpen] = useState(false);
+  const transactions = item.transactions || [];
+  const expandable = transactions.length > 0;
+
+  return (
+    <li className="rounded-xl bg-surface-container-low overflow-hidden">
+      <button
+        type="button"
+        onClick={() => expandable && setOpen(o => !o)}
+        disabled={!expandable}
+        aria-expanded={expandable ? open : undefined}
+        className={`w-full flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 px-3 text-left ${expandable ? 'hover:bg-surface-container-high cursor-pointer' : 'cursor-default'} transition-colors`}
+      >
+        <TagIcon className="w-3.5 h-3.5 text-on-surface-variant self-center shrink-0" />
+        <span className="font-body-md text-body-md text-on-background font-medium">
+          {item.label}
+        </span>
+        <span className="font-body-sm text-body-sm text-on-surface-variant">
+          {item.count} lançamento{item.count !== 1 ? 's' : ''}
+          {item.tagNames.length > 0 && ` · ${item.tagNames.join(', ')}`}
+        </span>
+        <span className="ml-auto font-semibold text-on-background whitespace-nowrap">
+          {formatCurrency(item.amount)}
+        </span>
+        {expandable && (
+          <ChevronDown
+            className={`w-4 h-4 self-center text-on-surface-variant transition-transform ${open ? 'rotate-180' : ''}`}
+          />
+        )}
+      </button>
+
+      {expandable && open && (
+        <ul className="border-t border-outline-variant divide-y divide-outline-variant bg-surface-container-lowest">
+          {transactions.map(tx => (
+            <li key={tx.id}>
+              <Link
+                to={`${createPageUrl("TransactionsV2")}?transactionId=${tx.id}`}
+                className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2 pl-9 pr-3 hover:bg-indigo-50 transition-colors group"
+                title="Abrir na tela de Transações"
+              >
+                <span className="font-body-sm text-body-sm text-on-surface-variant whitespace-nowrap w-24 shrink-0">
+                  {formatDate(tx.transaction_date)}
+                </span>
+                <span className="font-body-sm text-body-sm text-on-background font-medium truncate min-w-0 flex-1">
+                  {tx.description}
+                </span>
+                {tx.tagName && (
+                  <span className="font-body-sm text-body-sm text-on-surface-variant whitespace-nowrap">
+                    {tx.tagName}
+                  </span>
+                )}
+                <span className="font-body-sm text-body-sm font-semibold text-on-background whitespace-nowrap">
+                  {formatCurrency(tx.amount)}
+                </span>
+                <ExternalLink className="w-3.5 h-3.5 self-center text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
 export default function BudgetsReconciliation({ reconciliation, isLoading }) {
   if (isLoading) {
     return (
@@ -101,29 +178,15 @@ export default function BudgetsReconciliation({ reconciliation, isLoading }) {
             </p>
             <ul className="space-y-2">
               {itens.map(item => (
-                <li
-                  key={item.reason}
-                  className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 px-3 rounded-xl bg-surface-container-low"
-                >
-                  <TagIcon className="w-3.5 h-3.5 text-on-surface-variant self-center shrink-0" />
-                  <span className="font-body-md text-body-md text-on-background font-medium">
-                    {item.label}
-                  </span>
-                  <span className="font-body-sm text-body-sm text-on-surface-variant">
-                    {item.count} lançamento{item.count !== 1 ? 's' : ''}
-                    {item.tagNames.length > 0 && ` · ${item.tagNames.join(', ')}`}
-                  </span>
-                  <span className="ml-auto font-semibold text-on-background whitespace-nowrap">
-                    {formatCurrency(item.amount)}
-                  </span>
-                </li>
+                <ReconciliationItem key={item.reason} item={item} />
               ))}
             </ul>
             <p className="font-body-sm text-body-sm text-on-surface-variant mt-3">
               Só entram no orçamento as tags de despesa que podem receber um orçamento.
               Lançamentos sem tag, em tags do tipo &quot;Ambos&quot;, inativas ou de receita
               ficam fora da conta — por isso o total acima difere do gráfico
-              &quot;Despesas por Categoria&quot; do Dashboard.
+              &quot;Despesas por Categoria&quot; do Dashboard. Clique em um grupo para ver
+              os lançamentos e em um lançamento para abri-lo na tela de Transações.
             </p>
           </>
         )}
